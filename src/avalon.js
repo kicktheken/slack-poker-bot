@@ -114,6 +114,10 @@ class Avalon {
     return this.playerDms[player.id].send(message);
   }
 
+  dmMessages(player) {
+    return this.messages.where(e => e.channel == this.playerDms[player.id].id);
+  }
+
   questAssign() {
     return QUEST_ASSIGNS[this.players.length-2][this.questNumber];
   }
@@ -208,7 +212,7 @@ class Avalon {
               return rx.Observable.timer(1000, this.scheduler).flatMap(() => {
                 let printPlayers = questPlayers.map(qp => qp.name).join(',');
                 this.dm(p, `@${player.name} is sending ${printPlayers} to the ${ORDER[this.questNumber]} quest.\nVote **approve** or **reject**`);
-                return this.message
+                return this.dmMessages(p)
                   .where(e => e.user === p.id)
                   .map(e => e.text)
                   .where(text => text && text.match(/^\b(approve|reject)\b$/))
@@ -243,7 +247,7 @@ class Avalon {
       status = status.concat(_.times(5, (i) => {
         let questAssign = QUEST_ASSIGNS[this.players.length-2][i + status.length];
         return `${questAssign.n}${questAssign.f > 1 ? '*' : ''}:white_circle:`;
-      });
+      }));
     }
     return status.join(',');
   }
@@ -262,7 +266,7 @@ class Avalon {
       .concatMap(player => {
         return rx.Observable.defer(() => {
           return rx.Observable.timer(1000, this.scheduler).flatMap(() => {
-            return this.messages
+            return this.dmMessages(player)
               .where(e => e.user === player.id)
               .map(e => e.text)
               .where(text => text && text.match(/^\b(succeed|fail)\b$/))
@@ -320,13 +324,14 @@ class Avalon {
             this.gameEnded.onCompleted();
             return rx.Observable.return(true);
           }
+          let merlin = this.players.filter(player => player.role == 'merlin')[0];
           assassin = assasin[0];
           this.broadcast(`Victory is near for :large_blue_circle: Loyal Servents of Arthur for succeeding 3 quests!`);
           return rx.Observable.defer(() => {
             return rx.Observable.timer(1000, this.scheduler).flatMap(() => {
               for (let player of this.players) {
                 if (player.id == assassin.id) {
-                  this.dm(player, `*You* are the :red_circle: assassin. Type `kill <player>` to attempt to kill Merlin`);
+                  this.dm(player, `*You* are the :red_circle: assassin. Type \`kill <player>\` to attempt to kill Merlin`);
                 } else {
                   this.dm(player, `*@${assassin.name}* is the :red_circle: assassin. Awaiting the Merlin assassination attempt...`);
                 }
@@ -347,10 +352,22 @@ class Avalon {
                 .where(accused => !!accused)
                 .take(1)
                 .do(accused => {
-                  if (accused.role == 'merlin') {
-                    
+                  if (accused.role != 'merlin') {
+                    for (let player of this.players) {
+                      if (player.id == assassin.id) {
+                        this.dm(player, `@${accused.name} is not Merlin. :angel:@${merlin.name} is. :large_blue_circle: Loyal Servants of Arthur win!`);
+                      } else {
+                        this.dm(player, `:crossed_swords:@${assassin.name} chose @${accuse.name} as Merlin, not :angel:${merlin.name}. :large_blue_circle: Loyal Servants of Arthur win!`);
+                      }
+                    }
                   } else {
-
+                    for (let player of this.players) {
+                      if (player.id == assassin.id) {
+                        this.dm(player, `You chose :angel:@${accused.name} correctly as Merlin. :red_circle: Minions of Mordred win!`);
+                      } else {
+                        this.dm(player, `:crossed_swords:@${assassin.name} chose :angel:@${accused.name} correctly as Merlin. :red_circle: Minions of Mordred win!`);
+                      }
+                    }
                   }
                   this.gameEnded.onNext(true);
                   this.gameEnded.onCompleted();

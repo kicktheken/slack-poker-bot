@@ -59,10 +59,14 @@ class Bot {
   //
   // Returns a {Disposable} that will end this subscription
   handleDealGameMessages(messages, atMentions) {
-    return messages
-      // .where(e => e.text && e.text.toLowerCase().match(/chinese poker|\bofc\b/i))
-      .where(e => e.text && e.text.toLowerCase().match(/^play avalon$/i))
-      .map(e => ({ channel: this.slack.getChannelGroupOrDMByID(e.channel), initiator: e.user }))
+    let trigger = messages.where(e => e.text && e.text.toLowerCase().match(/^play avalon$/i));
+    trigger.map(e => this.slack.dms[e.channel]).where(channel => !!channel).do(channel => {
+      channel.send(`Message to a channel to play avalon.`);
+    }).subscribe();
+
+    return trigger.map(e => {
+      return { channel: this.slack.channels[e.channel], initiator: e.user };
+    }).where(starter => !!starter.channel)
       .where(starter => {
         if (this.isPolling) {
           return false;
@@ -121,8 +125,7 @@ class Bot {
         this.isPolling = false;
         this.addBotPlayers(players);
         
-        let messagesInChannel = messages.where(e => e.channel === channel.id);
-        return this.startGame(messagesInChannel, channel, players);
+        return this.startGame(messages, channel, players);
       });
   }
 
