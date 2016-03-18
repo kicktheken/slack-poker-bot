@@ -7,6 +7,7 @@ const SlackApiRx = require('./slack-api-rx');
 const ChinesePoker = require('./chinese-poker');
 const MessageHelpers = require('./message-helpers');
 const PlayerInteraction = require('./player-interaction');
+const Avalon = require('./avalon')
 
 const WeakBot = require('../ai/weak-bot');
 const AggroBot = require('../ai/aggro-bot');
@@ -59,7 +60,8 @@ class Bot {
   // Returns a {Disposable} that will end this subscription
   handleDealGameMessages(messages, atMentions) {
     return messages
-      .where(e => e.text && e.text.toLowerCase().match(/chinese poker|\bofc\b/i))
+      // .where(e => e.text && e.text.toLowerCase().match(/chinese poker|\bofc\b/i))
+      .where(e => e.text && e.text.toLowerCase().match(/^play avalon$/i))
       .map(e => ({ channel: this.slack.getChannelGroupOrDMByID(e.channel), initiator: e.user }))
       .where(starter => {
         if (this.isPolling) {
@@ -133,7 +135,7 @@ class Bot {
   // Returns an {Observable} that signals completion of the game 
   startGame(messages, channel, players) {
     if (players.length <= 1) {
-      channel.send('Not enough players for a game, try again later.');
+      channel.send('Not enough players for a game. Avalon requires 5-10 players.');
       return rx.Observable.return(null);
     }
 
@@ -141,7 +143,7 @@ class Bot {
     this.isGameRunning = true;
     
     //let game = new TexasHoldem(this.slack, messages, channel, players);
-    let game = new ChinesePoker(this.slack, messages, channel, players);
+    let game = new Avalon(this.slack, messages, channel, players);
     _.extend(game, this.gameConfig);
 
     // Listen for messages directed at the bot containing 'quit game.'
