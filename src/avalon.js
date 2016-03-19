@@ -131,40 +131,28 @@ class Avalon {
           f = ' (2 fails required)';
         }
         let message = ` ${questAssign.n} players ${f}to go on the ${ORDER[this.questNumber]} quest.`;
+        let status = `Quest progress: ${this.getStatus(true)}\n`;
         for (let p of this.players) {
-          console.log(p)
           if (p.id == player.id) {
-            this.dm(p,`*You* choose${message}\n(.eg \`send name1, name2\`)`)
-
+            this.dm(p,`${status}*You* choose${message}\n(.eg \`send name1, name2\`)`)
           } else {
-            this.dm(p,`*@${player.name}* chooses${message}`)
+            this.dm(p,`${status}${M.formatAtUser(player)} chooses${message}`)
           }
         }
-        let choosePlayersForQuest = this.choosePlayersForQuest(player, roundEnded);
-        let approved = choosePlayersForQuest
-          .where(votes => votes.approved.length >= votes.rejected.length)
-          .do(() => {
-            this.broadcast(`The ${ORDER[this.questNumber]} quest with ${this.questPlayers.join(',')} going was approved by ${votes.approved.join(',')}`)
-            this.rejectCount = 0;
-          })
-          .flatMap(() => rx.Observable.defer(() => {
-            return rx.Observable.timer(timeToPause, this.scheduler).flatMap(() => {
-              return this.runQuest(this.questPlayers, roundEnded);
-            })
-          }))
-
-
-        let rejected = choosePlayersForQuest
-          .where(votes => votes.rejected.length > votes.approved.length)
-          .do(() => {
-            this.rejectCount++;
-            this.broadcast(`The ${ORDER[this.questNumber]} quest with ${this.questPlayers.join(',')} going was rejected (${this.rejectCount}) by ${votes.rejected.join(',')}`)
-            if (this.rejectCount >= 5) {
-              this.broadcast(`:red_circle: Minions of Mordred (${this.evils}) win due to quest rejected 5 times!`);
-              this.quit();
+        return this.choosePlayersForQuest(player, roundEnded)
+          .concatMap(votes => {
+            let printQuesters = this.pp(this.questPlayers);
+            if (votes.approved.length >= votes.rejected.length) {
+              this.broadcast(`The ${ORDER[this.questNumber]} quest with ${printQuesters} going was approved by ${this.pp(votes.approved)}`)
+              this.rejectCount = 0;
+              return rx.Observable.defer(() => rx.Observable.timer(timeToPause, this.scheduler).flatMap(() => {
+                return this.runQuest(this.questPlayers, roundEnded);
+              }));
             }
-          });
-        return rx.Observable.merge(approved, rejected).take(1);
+            this.rejectCount++;
+            this.broadcast(`The ${ORDER[this.questNumber]} quest with ${printQuesters} going was rejected (${this.rejectCount}) by ${this.pp(votes.rejected)}`)
+            return rx.Observable.return(true);
+          })
       });
     });
   }
@@ -175,12 +163,17 @@ class Avalon {
     }
   }
 
+  pp(arrayOfPlayers) {
+    return arrayOfPlayers.map(p => M.formatAtUser(p)).join(',');
+  }
+
   choosePlayersForQuest(player, roundEnded) {
     let questAssign = this.questAssign();
-    return this.messages.where(e => e.user === player.id)
+    return this.messages
+      .where(e => e.user === player.id)
       .map(e => e.text)
       .where(text => text && text.match(/^send /i))
-      .map(text => text.substr(5).trim().split(','))
+      .map(text => text.split(/[,\s]+/).slice(1))
       .map(chosen => {
         if (chosen.length != questAssign.n) {
           return [];
@@ -192,45 +185,38 @@ class Avalon {
           }
         }
         return questPlayers;
-        let checkValid = chosen.every(name => this.players.some(p => p.name == name));
-        if (!checkValid) {
-
-        }
-        return checkValid;
       })
       .where(questPlayers => {
         if (questPlayers.length != questAssign.n) {
           this.dm(player, `You need to send ${questAssign.n} players. (You only chosen ${questPlayers.length} valid players)`);
         }
-        return questPlayers.length == quesetAssign.n;
+        return questPlayers.length == questAssign.n;
       })
-      .flatMap(questPlayers => {
+      .concatMap(questPlayers => {
         this.questPlayers = questPlayers;
+        let printPlayers = questPlayers.map(qp => qp.name).join(', ');
+        this.dm(player, `You've chosen ${printPlayers} to go on the ${ORDER[this.questNumber]} quest. Awaiting votes...`);
         return rx.Observable.fromArray(this.players.filter(p => p.id != player.id))
-          .concatMap(p => {
-            return rx.Observable.defer(() => {
-              return rx.Observable.timer(1000, this.scheduler).flatMap(() => {
-                let printPlayers = questPlayers.map(qp => qp.name).join(',');
-                this.dm(p, `@${player.name} is sending ${printPlayers} to the ${ORDER[this.questNumber]} quest.\nVote **approve** or **reject**`);
-                return this.dmMessages(p)
-                  .where(e => e.user === p.id)
-                  .map(e => e.text)
-                  .where(text => text && text.match(/^\b(approve|reject)\b$/))
-                  .map(text => { return { player: p.name, approve: text.match(/approve/) }})
-                  .take(1)
-              })
-            })
-          })
-          .take(this.players.length - 1)
-          .reduce((acc, vote) => {
-            if (vote.approve) {
-              acc.approved.push(vote.player);
-            } else {
-              acc.rejected.push(vote.player);
-            }
-            return acc;
-          }, { approved: [], rejected: [] })
+          .map(p => {
+            this.dm(p, `${M.formatAtUser(player)} is sending ${printPlayers} to the ${ORDER[this.questNumber]} quest.\nVote *approve* or *reject*`);
+            return this.dmMessages(p)
+              .where(e => e.user === p.id)
+              .map(e => e.text)
+              .where(text => text && text.match(/^\b(approve|reject)\b$/))
+              .map(text => { return { player: p, approve: text.match(/approve/) }})
+              .take(1)
+          }).mergeAll()
+          
       })
+      .take(this.players.length - 1)
+      .reduce((acc, vote) => {
+        if (vote.approve) {
+          acc.approved.push(vote.player);
+        } else {
+          acc.rejected.push(vote.player);
+        }
+        return acc;
+      }, { approved: [], rejected: [] })
   }
 
   getStatus(current = false) {
@@ -243,8 +229,8 @@ class Avalon {
       let questAssign = QUEST_ASSIGNS[this.players.length-2][this.questNumber];
       status.push(`${questAssign.n}${questAssign.f > 1 ? '*' : ''}:black_circle:`);
     }
-    if (this.progress.length < 5) {
-      status = status.concat(_.times(5, (i) => {
+    if (status.length < 5) {
+      status = status.concat(_.times(5 - status.length, (i) => {
         let questAssign = QUEST_ASSIGNS[this.players.length-2][i + status.length];
         return `${questAssign.n}${questAssign.f > 1 ? '*' : ''}:white_circle:`;
       }));
@@ -253,56 +239,50 @@ class Avalon {
   }
 
   runQuest(questPlayers, roundEnded) {
-    let message = `${questPlayers.join(',')} are going on the ${ORDER[this.questNumber]} quest.`
+    let message = `${this.pp(questPlayers)} are going on the ${ORDER[this.questNumber]} quest.`
     message += `\nCurrent quest progress: ${this.getStatus(true)}`;
     for (let player of this.players) {
       if (questPlayers.some(p => p.name == player.name)) {
-        this.dm(`${message}\nVote *succeed* or *fail* for this mission`)
+        this.dm(player, `${message}\nYou can *succeed* or *fail* for this mission`)
       } else {
-        this.dm(`${message}\nWait for the votes.`);
+        this.dm(player, `${message}\nWait for the quest results.`);
       }
     }
-    return rx.Obsesrvable.fromArray(questPlayers)
-      .concatMap(player => {
-        return rx.Observable.defer(() => {
-          return rx.Observable.timer(1000, this.scheduler).flatMap(() => {
-            return this.dmMessages(player)
-              .where(e => e.user === player.id)
-              .map(e => e.text)
-              .where(text => text && text.match(/^\b(succeed|fail)\b$/))
-              .map(text => text.match(/fail/) ? 1 : 0)
-              .take(1)
-          });
-        });
+    try {
+    let runners = 0;
+    return rx.Observable.fromArray(questPlayers)
+      .map(player => {
+        return this.dmMessages(player)
+          .where(e => e.user === player.id)
+          .map(e => e.text)
+          .where(text => text && text.match(/^\b(succeed|fail)\b$/))
+          .map(text => text.match(/fail/) ? 1 : 0)
+          .take(1)
+      }).mergeAll()
+      .do(() => {
+        if (++runners < questPlayers.length) {
+          this.broadcast(`${runners} out of ${questPlayers.length} completed the quest`);
+        }
       })
       .take(questPlayers.length)
       .reduce((acc, fail) => acc + fail,0)
       .map((fails) => {
         let message;
         if (fails > 0) {
-          message = `${fails} in (${questPlayers.join(',')}) failed the ${ORDER[this.questNumber]} quest!`;
-          message += `\nQuest progress: ${this.getStatus()}`;
-          this.broadcast(message)
           this.progress.push('bad');
+          message = `${fails} in (${this.pp(questPlayers)}) failed the ${ORDER[this.questNumber]} quest!`;
         } else {
-          message = `${questPlayers.join(',')} succeeded the ${ORDER[this.questNumber]} quest!`;
-          message += `\nQuest progress: ${this.getStatus()}`;
-          this.broadcast(message);
           this.progress.push('good')
-          let win = this.progress.map(res => res == 'good' ? 1 : 0).reduce((acc,x) => acc + x,0);
-          if (win == 3) {
-            
-            this.gameEnded.onNext(true);
-            this.gameEnded.onCompleted();
-          }
+          message = `${this.pp(questPlayers)} succeeded the ${ORDER[this.questNumber]} quest!`;
         }
+        this.broadcast(message);
         let score = { good: 0, bad: 0 };
         for (let res of this.progress) {
           score[res]++;
         }
         return score;
       })
-      .flatMap(score => {
+      .concatMap(score => {
         let message;
         if (score.bad == 3) {
           message = `:red_circle: Minions of Mordred win by failing 3 quests!`;
@@ -372,11 +352,12 @@ class Avalon {
                   this.gameEnded.onNext(true);
                   this.gameEnded.onCompleted();
                 })
+            });
           });
-        });
         }
         return rx.Observable.return(true);
       })
+    } catch(e) { console.error('ee', e)}
   }
 }
 
