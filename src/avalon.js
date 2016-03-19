@@ -64,21 +64,22 @@ class Avalon {
       let player = players[i];
       player.role = assigns[i];
       if (player.role == 'assassin' || player.role == 'bad') {
-        evils.push(player.name);
+        evils.push(player);
       }
     }
 
+    this.date = new Date();
+    let title = `Start Avalon Game (${this.date})`;
     for (let player of this.players) {
-      let message = 'You are ' + ROLE[player.role];
+      let message = `You are ${ROLE[player.role]}`;
       if (player.role != 'good') {
-        message += '. ' + evils.join() + ' are evil';
+        message += `. ${this.pp(evils)} are evil`;
       }
-      this.dm(player,message)
+      this.dm(player,message,player.role == 'good' || player.role == 'merlin' ? '#08e' : '#e00',title);
     }
 
     rx.Observable.return(true)
-      .flatMap(() => this.playRound()
-        .flatMap(() => rx.Observable.timer(timeBetweenRounds, this.scheduler)))
+      .flatMap(() => this.playRound())
       .repeat()
       .takeUntil(this.gameEnded)
       .subscribe();
@@ -94,24 +95,36 @@ class Avalon {
 
   playRound() {
     let roundEnded = new rx.Subject();
-    let queryPlayers = rx.Observable.fromArray(this.players)
-      .concatMap(player => this.deferredActionForPlayer(player, roundEnded))
-      //.concatMap(player => this.autoFlop(player, roundEnded))
-      .repeat()
-      .takeUntil(this.gameEnded)
-      .publish();
-
-    queryPlayers.connect();
-    roundEnded.subscribe(this.endRound.bind(this));
-    return roundEnded;
+    return rx.Observable.fromArray(this.players)
+      .concatMap(player => this.deferredActionForPlayer(player, roundEnded));
   }
 
-  endRound() {
-
+  endGame(message, color, current=false) {
+    let status = `Quest Results: ${this.getStatus(current)}`;
+    if (message && message.length) {
+      message += `\n${status}\n${this.pp(this.evils)} are :red_circle: Minions of Mordred.`;
+      let merlin = this.players.filter(player => player.role == 'merlin');
+      if (merlin.length) {
+        message += `\n${M.formatAtUser(merlin[0])} is :angel: Merlin`;
+      }
+    } else {
+      message = `${status}\n${this.pp(this.evils)} are Minions of Mordred.`;
+    }
+    let title = `End Avalon Game (${this.date})`;
+    this.broadcast(message, color, title);
+    this.gameEnded.onNext(true);
+    this.gameEnded.onCompleted();
   }
 
-  dm(player, message) {
-    return this.playerDms[player.id].send(message);
+  dm(player, message, color, title) {
+    let attachment = { fallback: message, text: message, mrkdwn: true, mrkdwn_in: ['text'] };
+    if (color) attachment.color = color;
+    if (title) attachment.title = title;
+    return this.playerDms[player.id].postMessage({
+      username: 'avalon-bot',
+      icon_emoji: ':crystal_ball:',
+      attachments: [attachment]
+    });
   }
 
   dmMessages(player) {
@@ -151,15 +164,18 @@ class Avalon {
             }
             this.rejectCount++;
             this.broadcast(`The ${ORDER[this.questNumber]} quest with ${printQuesters} going was rejected (${this.rejectCount}) by ${this.pp(votes.rejected)}`)
+            if (this.rejectCount >= 5) {
+              this.endGame(`:red_circle: Minions of Mordred win due to the ${ORDER[this.questNumber]} quest rejected 5 times!`, '#e00', true);
+            }
             return rx.Observable.return(true);
           })
       });
     });
   }
 
-  broadcast(message) {
+  broadcast(message, color, title) {
     for (let player of this.players) {
-      this.dm(player, message);
+      this.dm(player, message, color, title);
     }
   }
 
@@ -169,6 +185,7 @@ class Avalon {
 
   choosePlayersForQuest(player, roundEnded) {
     let questAssign = this.questAssign();
+    let voters = 0;
     return this.messages
       .where(e => e.user === player.id)
       .map(e => e.text)
@@ -194,11 +211,10 @@ class Avalon {
       })
       .concatMap(questPlayers => {
         this.questPlayers = questPlayers;
-        let printPlayers = questPlayers.map(qp => qp.name).join(', ');
-        this.dm(player, `You've chosen ${printPlayers} to go on the ${ORDER[this.questNumber]} quest. Awaiting votes...`);
+        this.dm(player, `You've chosen ${this.pp(questPlayers)} to go on the ${ORDER[this.questNumber]} quest. Awaiting votes...`);
         return rx.Observable.fromArray(this.players.filter(p => p.id != player.id))
           .map(p => {
-            this.dm(p, `${M.formatAtUser(player)} is sending ${printPlayers} to the ${ORDER[this.questNumber]} quest.\nVote *approve* or *reject*`);
+            this.dm(p, `${M.formatAtUser(player)} is sending ${this.pp(questPlayers)} to the ${ORDER[this.questNumber]} quest.\nVote *approve* or *reject*`, '#555');
             return this.dmMessages(p)
               .where(e => e.user === p.id)
               .map(e => e.text)
@@ -207,6 +223,11 @@ class Avalon {
               .take(1)
           }).mergeAll()
           
+      })
+      .do(() => {
+        if (++voters < this.players.length - 1) {
+          this.broadcast(`${voters} out of ${this.players.length - 1} voted for the ${ORDER[this.questNumber]} quest`);
+        }
       })
       .take(this.players.length - 1)
       .reduce((acc, vote) => {
@@ -243,7 +264,7 @@ class Avalon {
     message += `\nCurrent quest progress: ${this.getStatus(true)}`;
     for (let player of this.players) {
       if (questPlayers.some(p => p.name == player.name)) {
-        this.dm(player, `${message}\nYou can *succeed* or *fail* for this mission`)
+        this.dm(player, `${message}\nYou can *succeed* or *fail* for this mission`, '#ea0')
       } else {
         this.dm(player, `${message}\nWait for the quest results.`);
       }
@@ -261,7 +282,7 @@ class Avalon {
       }).mergeAll()
       .do(() => {
         if (++runners < questPlayers.length) {
-          this.broadcast(`${runners} out of ${questPlayers.length} completed the quest`);
+          this.broadcast(`${runners} out of ${questPlayers.length} completed the ${ORDER[this.questNumber]} quest`);
         }
       })
       .take(questPlayers.length)
@@ -275,6 +296,7 @@ class Avalon {
           this.progress.push('good')
           message = `${this.pp(questPlayers)} succeeded the ${ORDER[this.questNumber]} quest!`;
         }
+        this.questNumber++;
         this.broadcast(message);
         let score = { good: 0, bad: 0 };
         for (let res of this.progress) {
@@ -285,23 +307,11 @@ class Avalon {
       .concatMap(score => {
         let message;
         if (score.bad == 3) {
-          message = `:red_circle: Minions of Mordred win by failing 3 quests!`;
-          let merlin = this.players.filter(player => player.role == 'merlin');
-          message += `\n${this.evil.join(',')} are :red_circle: Minions of Mordred.`;
-          if (merlin.length) {
-            message += `\n${merlin[0].name} is :angel: Merlin`;
-          }
-          this.broadcast(message);
-          this.gameEnded.onNext(true);
-          this.gameEnded.onCompleted();
+          this.endGame(`:red_circle: Minions of Mordred win by failing 3 quests!`, '#e00');
         } else if (score.good == 3) {
           let assassin = this.players.filter(player => player.role == 'assassin');
           if (!assassin.length) {
-            message = `:large_blue_circle: Loyal Servents of Arthur win by succeeding 3 quests!`;
-            message += `\n${this.evil.join(',')} are :red_circle: Minions of Mordred.`;
-            this.broadcast(message);
-            this.gameEnded.onNext(true);
-            this.gameEnded.onCompleted();
+            this.endGame(`:large_blue_circle: Loyal Servents of Arthur win by succeeding 3 quests!`, '#08e');
             return rx.Observable.return(true);
           }
           let merlin = this.players.filter(player => player.role == 'merlin')[0];
@@ -313,7 +323,7 @@ class Avalon {
                 if (player.id == assassin.id) {
                   this.dm(player, `*You* are the :red_circle: assassin. Type \`kill <player>\` to attempt to kill Merlin`);
                 } else {
-                  this.dm(player, `*@${assassin.name}* is the :red_circle: assassin. Awaiting the Merlin assassination attempt...`);
+                  this.dm(player, `*${M.formatAtUser(assassin)}* is the :red_circle: assassin. Awaiting the Merlin assassination attempt...`);
                 }
               }
               return this.messages
@@ -335,22 +345,22 @@ class Avalon {
                   if (accused.role != 'merlin') {
                     for (let player of this.players) {
                       if (player.id == assassin.id) {
-                        this.dm(player, `@${accused.name} is not Merlin. :angel:@${merlin.name} is. :large_blue_circle: Loyal Servants of Arthur win!`);
+                        this.dm(player, `${M.formatAtUser(accused)} is not Merlin. :angel:${M.formatAtUser(merlin)} is. :large_blue_circle: Loyal Servants of Arthur win!`);
                       } else {
-                        this.dm(player, `:crossed_swords:@${assassin.name} chose @${accuse.name} as Merlin, not :angel:${merlin.name}. :large_blue_circle: Loyal Servants of Arthur win!`);
+                        this.dm(player, `:crossed_swords:${M.formatAtUser(assassin)} chose ${M.formatAtUser(accused)} as Merlin, not :angel:${M.formatAtUser(merlin)}. :large_blue_circle: Loyal Servants of Arthur win!`);
                       }
                     }
+                    this.endGame(null, '#08e');
                   } else {
                     for (let player of this.players) {
                       if (player.id == assassin.id) {
-                        this.dm(player, `You chose :angel:@${accused.name} correctly as Merlin. :red_circle: Minions of Mordred win!`);
+                        this.dm(player, `You chose :angel:${M.formatAtUser(accused)} correctly as Merlin. :red_circle: Minions of Mordred win!`);
                       } else {
-                        this.dm(player, `:crossed_swords:@${assassin.name} chose :angel:@${accused.name} correctly as Merlin. :red_circle: Minions of Mordred win!`);
+                        this.dm(player, `:crossed_swords:${M.formatAtUser(assassin)} chose :angel:@${M.formatAtUser(accused)} correctly as Merlin. :red_circle: Minions of Mordred win!`);
                       }
                     }
+                    this.endGame(null, '#e00');
                   }
-                  this.gameEnded.onNext(true);
-                  this.gameEnded.onCompleted();
                 })
             });
           });
