@@ -54,6 +54,7 @@ class Avalon {
     this.rejectCount = 0;
     this.progress = [];
     this.playerDms = playerDms;
+    this.date = new Date();
 
     let assigns = _.shuffle(ROLE_ASSIGNS[this.players.length - 2]);
     let players = _.shuffle(this.players);
@@ -68,14 +69,13 @@ class Avalon {
       }
     }
 
-    this.date = new Date();
-    let title = `Start Avalon Game (${this.date})`;
     for (let player of this.players) {
-      let message = `You are ${ROLE[player.role]}`;
+      let message = `\`\`\`${_.times(60,_.constant('\n')).join('')}\`\`\` You are ${ROLE[player.role]}`;
       if (player.role != 'good') {
         message += `. ${this.pp(evils)} are evil`;
       }
-      this.dm(player,message,player.role == 'good' || player.role == 'merlin' ? '#08e' : '#e00',title);
+      message += ` \`\`\`${_.times(60,_.constant('\n')).join('')}Scroll up to see your role\`\`\``;
+      this.playerDms[player.id].send(message);
     }
 
     rx.Observable.return(true)
@@ -94,9 +94,8 @@ class Avalon {
   }
 
   playRound() {
-    let roundEnded = new rx.Subject();
     return rx.Observable.fromArray(this.players)
-      .concatMap(player => this.deferredActionForPlayer(player, roundEnded));
+      .concatMap(player => this.deferredActionForPlayer(player));
   }
 
   endGame(message, color, current=false) {
@@ -110,16 +109,20 @@ class Avalon {
     } else {
       message = `${status}\n${this.pp(this.evils)} are Minions of Mordred.`;
     }
-    let title = `End Avalon Game (${this.date})`;
-    this.broadcast(message, color, title);
+    this.broadcast(message, color, 'end');
     this.gameEnded.onNext(true);
     this.gameEnded.onCompleted();
   }
 
-  dm(player, message, color, title) {
-    let attachment = { fallback: message, text: message, mrkdwn: true, mrkdwn_in: ['text'] };
+  dm(player, message, color, special) {
+    let attachment = { fallback: message, text: message, mrkdwn: true, mrkdwn_in: ['pretext','text'] };
     if (color) attachment.color = color;
-    if (title) attachment.title = title;
+    if (special == 'start') {
+      attachment.pretext = `*Start Avalon Game* (${this.date})`;
+      attachment.thumb_url = 'https://cf.geekdo-images.com/images/pic1398895_md.jpg';
+    } else if (special == 'end') {
+      attachment.pretext = `*End Avalon Game* (${this.date})`;
+    }
     return this.playerDms[player.id].postMessage({
       username: 'avalon-bot',
       icon_emoji: ':crystal_ball:',
@@ -135,7 +138,7 @@ class Avalon {
     return QUEST_ASSIGNS[this.players.length-2][this.questNumber];
   }
 
-  deferredActionForPlayer(player, roundEnded, timeToPause=1000) {
+  deferredActionForPlayer(player, timeToPause=1000) {
     return rx.Observable.defer(() => {
       return rx.Observable.timer(timeToPause, this.scheduler).flatMap(() => {
         let questAssign = this.questAssign();
@@ -145,21 +148,22 @@ class Avalon {
         }
         let message = ` ${questAssign.n} players ${f}to go on the ${ORDER[this.questNumber]} quest.`;
         let status = `Quest progress: ${this.getStatus(true)}\n`;
+        let special = this.questNumber == 0 && this.rejectCount == 0 ? 'start' : '';
         for (let p of this.players) {
           if (p.id == player.id) {
-            this.dm(p,`${status}*You* choose${message}\n(.eg \`send name1, name2\`)`)
+            this.dm(p,`${status}*You* choose${message}\n(.eg \`send name1, name2\`)`, '#a60', special);
           } else {
-            this.dm(p,`${status}${M.formatAtUser(player)} chooses${message}`)
+            this.dm(p,`${status}${M.formatAtUser(player)} chooses${message}`, null, special);
           }
         }
-        return this.choosePlayersForQuest(player, roundEnded)
+        return this.choosePlayersForQuest(player)
           .concatMap(votes => {
             let printQuesters = this.pp(this.questPlayers);
             if (votes.approved.length >= votes.rejected.length) {
               this.broadcast(`The ${ORDER[this.questNumber]} quest with ${printQuesters} going was approved by ${this.pp(votes.approved)}`)
               this.rejectCount = 0;
               return rx.Observable.defer(() => rx.Observable.timer(timeToPause, this.scheduler).flatMap(() => {
-                return this.runQuest(this.questPlayers, roundEnded);
+                return this.runQuest(this.questPlayers);
               }));
             }
             this.rejectCount++;
@@ -173,9 +177,9 @@ class Avalon {
     });
   }
 
-  broadcast(message, color, title) {
+  broadcast(message, color, special) {
     for (let player of this.players) {
-      this.dm(player, message, color, title);
+      this.dm(player, message, color, special);
     }
   }
 
@@ -183,7 +187,7 @@ class Avalon {
     return arrayOfPlayers.map(p => M.formatAtUser(p)).join(',');
   }
 
-  choosePlayersForQuest(player, roundEnded) {
+  choosePlayersForQuest(player) {
     let questAssign = this.questAssign();
     let voters = 0;
     return this.messages
@@ -205,7 +209,7 @@ class Avalon {
       })
       .where(questPlayers => {
         if (questPlayers.length != questAssign.n) {
-          this.dm(player, `You need to send ${questAssign.n} players. (You only chosen ${questPlayers.length} valid players)`);
+          this.dm(player, `You need to send ${questAssign.n} players. (You only chosen ${questPlayers.length} valid players)`, '#a60');
         }
         return questPlayers.length == questAssign.n;
       })
@@ -259,7 +263,7 @@ class Avalon {
     return status.join(',');
   }
 
-  runQuest(questPlayers, roundEnded) {
+  runQuest(questPlayers) {
     let message = `${this.pp(questPlayers)} are going on the ${ORDER[this.questNumber]} quest.`
     message += `\nCurrent quest progress: ${this.getStatus(true)}`;
     for (let player of this.players) {
