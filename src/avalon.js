@@ -13,9 +13,9 @@ const ROLE = {
   'merlin': ':angel: MERLIN :large_blue_circle: Loyal Servent of Arthur'
 };
 const ROLE_ASSIGNS = [
-  ['assassin', 'merlin'],
-  ['assassin', 'good', 'merlin'],
-  ['assassin', 'good', 'good', 'merlin'],
+  // ['assassin', 'merlin'],
+  // ['assassin', 'good', 'merlin'],
+  // ['assassin', 'good', 'good', 'merlin'],
   ['bad', 'assassin', 'good', 'good', 'merlin'],
   ['bad', 'assassin', 'good', 'good', 'good', 'merlin'],
   ['bad', 'bad', 'assassin', 'good', 'good', 'good', 'merlin'],
@@ -27,9 +27,9 @@ const ROLE_ASSIGNS = [
 const ORDER = ['first', 'second', 'third', 'fourth', 'last'];
 
 const QUEST_ASSIGNS = [
-  [{n:2,f:1},{n:1,f:1},{n:2,f:1},{n:1,f:1},{n:2,f:1}],
-  [{n:2,f:1},{n:2,f:1},{n:2,f:1},{n:2,f:1},{n:2,f:1}],
-  [{n:2,f:1},{n:3,f:1},{n:2,f:1},{n:3,f:1},{n:3,f:1}],
+  // [{n:2,f:1},{n:1,f:1},{n:2,f:1},{n:1,f:1},{n:2,f:1}],
+  // [{n:2,f:1},{n:2,f:1},{n:2,f:1},{n:2,f:1},{n:2,f:1}],
+  // [{n:2,f:1},{n:3,f:1},{n:2,f:1},{n:3,f:1},{n:3,f:1}],
   [{n:2,f:1},{n:3,f:1},{n:2,f:1},{n:3,f:1},{n:3,f:1}],
   [{n:2,f:1},{n:3,f:1},{n:3,f:1},{n:3,f:1},{n:4,f:1}],
   [{n:2,f:1},{n:3,f:1},{n:3,f:1},{n:4,f:2},{n:4,f:1}],
@@ -39,6 +39,9 @@ const QUEST_ASSIGNS = [
 ];
 
 class Avalon {
+  static get MIN_PLAYERS() {
+    return 5;
+  }
   constructor(slack, messages, channel, players, scheduler=rx.Scheduler.timeout) {
     this.slack = slack;
     this.messages = messages;
@@ -56,7 +59,7 @@ class Avalon {
     this.playerDms = playerDms;
     this.date = new Date();
 
-    let assigns = _.shuffle(ROLE_ASSIGNS[this.players.length - 2]);
+    let assigns = _.shuffle(ROLE_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS]);
     let players = _.shuffle(this.players);
     this.players = players;
 
@@ -135,7 +138,7 @@ class Avalon {
   }
 
   questAssign() {
-    return QUEST_ASSIGNS[this.players.length-2][this.questNumber];
+    return QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][this.questNumber];
   }
 
   deferredActionForPlayer(player, timeToPause=1000) {

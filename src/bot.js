@@ -137,7 +137,7 @@ class Bot {
   //
   // Returns an {Observable} that signals completion of the game 
   startGame(messages, channel, players) {
-    if (players.length <= 1) {
+    if (players.length < Avalon.MIN_PLAYERS) {
       channel.send('Not enough players for a game. Avalon requires 5-10 players.');
       return rx.Observable.return(null);
     }
