@@ -65,7 +65,10 @@ class Bot {
     }).subscribe();
 
     return trigger.map(e => {
-      return { channel: this.slack.channels[e.channel], initiator: e.user };
+      return {
+        channel: this.slack.channels[e.channel] || this.slack.groups[e.channel],
+        initiator: e.user
+      };
     }).where(starter => !!starter.channel)
       .where(starter => {
         if (this.isPolling) {
