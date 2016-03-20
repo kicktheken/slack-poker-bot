@@ -4,10 +4,10 @@ const _ = require('lodash');
 const Slack = require('slack-client');
 const SlackApiRx = require('./slack-api-rx');
 //const TexasHoldem = require('./texas-holdem');
-const ChinesePoker = require('./chinese-poker');
-const MessageHelpers = require('./message-helpers');
+//const ChinesePoker = require('./chinese-poker');
+const M = require('./message-helpers');
 const PlayerInteraction = require('./player-interaction');
-const Avalon = require('./avalon')
+const Avalon = require('./avalon');
 
 const WeakBot = require('../ai/weak-bot');
 const AggroBot = require('../ai/aggro-bot');
@@ -41,7 +41,7 @@ class Bot {
       .where(e => e.type === 'message');
 
     let atMentions = messages.where(e => 
-      MessageHelpers.containsUserMention(e.text, this.slack.self.id));
+      M.containsUserMention(e.text, this.slack.self.id));
 
     let disp = new rx.CompositeDisposable();
         
@@ -116,7 +116,7 @@ class Bot {
       .shareValue(initiator)
       .reduce((players, id) => {
         let user = this.slack.getUserByID(id);
-        channel.send(`${MessageHelpers.formatAtUser(user)} has joined the game.`);
+        channel.send(`${M.formatAtUser(user)} has joined the game.`);
         
         players.push({id: user.id, name: user.name});
         return players;
@@ -150,14 +150,13 @@ class Bot {
     _.extend(game, this.gameConfig);
 
     // Listen for messages directed at the bot containing 'quit game.'
-    let quitGameDisp = messages.where(e => MessageHelpers.containsUserMention(e.text, this.slack.self.id) &&
-      e.text.toLowerCase().match(/\bquit\b/i))
+    let quitGameDisp = messages.where(e => e.text && e.text.match(/^quit game/i))
       .take(1)
       .subscribe(e => {
         // TODO: Should poll players to make sure they all want to quit.
         let player = this.slack.getUserByID(e.user);
-        channel.send(`${player.name} has decided to quit the game. The game will end after this hand.`);
-        game.quit();
+        channel.send(`${M.formatAtUser(player)} has decided to quit the game.`);
+        game.endGame(`${M.formatAtUser(player)} has decided to quit the game.`);
       });
     
     return SlackApiRx.openDms(this.slack, players)
