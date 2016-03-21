@@ -251,17 +251,17 @@ class Avalon {
 
   getStatus(current = false) {
     let status = this.progress.map((res,i) => {
-      let questAssign = QUEST_ASSIGNS[this.players.length-2][i];
+      let questAssign = QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][i];
       let circle = res == 'good' ? ':large_blue_circle:': ':red_circle:';
       return `${questAssign.n}${questAssign.f > 1 ? '*' : ''}${circle}`;
     });
     if (current) {
-      let questAssign = QUEST_ASSIGNS[this.players.length-2][this.questNumber];
+      let questAssign = QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][this.questNumber];
       status.push(`${questAssign.n}${questAssign.f > 1 ? '*' : ''}:black_circle:`);
     }
     if (status.length < 5) {
       status = status.concat(_.times(5 - status.length, (i) => {
-        let questAssign = QUEST_ASSIGNS[this.players.length-2][i + status.length];
+        let questAssign = QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][i + status.length];
         return `${questAssign.n}${questAssign.f > 1 ? '*' : ''}:white_circle:`;
       }));
     }
