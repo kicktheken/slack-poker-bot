@@ -141,7 +141,7 @@ class Avalon {
     return QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][this.questNumber];
   }
 
-  deferredActionForPlayer(player, timeToPause=1000) {
+  deferredActionForPlayer(player, timeToPause=3000) {
     return rx.Observable.defer(() => {
       return rx.Observable.timer(timeToPause, this.scheduler).flatMap(() => {
         let questAssign = this.questAssign();
