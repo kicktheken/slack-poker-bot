@@ -119,9 +119,12 @@ class Bot {
       .shareValue(initiator)
       .reduce((players, id) => {
         let user = this.slack.getUserByID(id);
-        channel.send(`${M.formatAtUser(user)} has joined the game.`);
-        
-        players.push({id: user.id, name: user.name});
+        players.push(user);
+        let message = `${M.formatAtUser(user)} has joined the game`;
+        if (players.length > 1) {
+          message += ` (${players.length} players in game so far)`;
+        }
+        channel.send(message);
         return players;
       }, [])
       .flatMap(players => {
