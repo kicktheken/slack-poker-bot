@@ -59,15 +59,43 @@ class Bot {
   //
   // Returns a {Disposable} that will end this subscription
   handleDealGameMessages(messages, atMentions) {
-    let trigger = messages.where(e => e.text && e.text.toLowerCase().match(/^play avalon$/i));
-    trigger.map(e => this.slack.dms[e.channel]).where(channel => !!channel).do(channel => {
-      channel.send(`Message to a channel to play avalon.`);
-    }).subscribe();
+    let trigger = messages.where(e => e.text && e.text.toLowerCase().match(/^play avalon/i));
+    let dmStart = trigger.where(e => !!this.slack.dms[e.channel]).map(e => e.text.split(/[,\s]+/).slice(2))
+      .map(playerNames => {
+        let channel = this.slack.dms[e.channel];
+        if (this.isPolling) {
+          channel.send(`Another game is polling in a different channel`);
+          return [];
+        } else if (this.isGameRunning) {
+          channel.send('Another game is in progress, quit that first.');
+          return [];
+        }
+        let errors = [];
+        let players = playerNames.map(name => {
+          let player = this.slack.getUserByName(name);
+          if (!player) {
+            errors.push(`Cannot find player ${name}`);
+          }
+          return player;
+        });
+        if (!playerNames.length) {
+          errors.push(`Usage: \`play avalon <player1> <player2> ...\``);
+        } else if (players.length < 5 || players.length > 10) {
+          errors.push(`Avalon is requires 5-10 players. You've inputed ${players.length} valid players.`)
+        }
+        if (errors.length) {
+          channel.send(errors.join('\n'));
+        }
+        return players;
+      })
+      .where(players => players.length >= 5 && players.length <= 10);
 
-    return trigger.map(e => {
+
+    let groupStart = trigger.map(e => {
       return {
         channel: this.slack.channels[e.channel] || this.slack.groups[e.channel],
-        initiator: e.user
+        initiator: e.user,
+        playerNames: e.text.split(/[,\s]+/).slice(2)
       };
     }).where(starter => !!starter.channel)
       .where(starter => {
@@ -79,7 +107,9 @@ class Bot {
         }
         return true;
       })
-      .flatMap(starter => this.pollPlayersForGame(messages, starter.channel, starter.initiator))
+      .flatMap(starter => this.pollPlayersForGame(messages, starter.channel, starter.initiator, starter.playerNames))
+
+    let startGame =
       .subscribe();
   }
   
@@ -111,20 +141,35 @@ class Bot {
   // channel - The channel where the deal message was posted
   //
   // Returns an {Observable} that signals completion of the game 
-  pollPlayersForGame(messages, channel, initiator) {
+  pollPlayersForGame(messages, channel, initiator, playerNames) {
     this.isPolling = true;
 
-    return PlayerInteraction.pollPotentialPlayers(messages, channel)
-      .where(user => user != initiator)
-      .shareValue(initiator)
-      .reduce((players, id) => {
-        let user = this.slack.getUserByID(id);
-        players.push(user);
-        let message = `${M.formatAtUser(user)} has joined the game`;
+    let errors = [];
+    let players = playerNames.map(name => {
+      let player = this.slack.getUserByName(name);
+      if (!player) {
+        errors.push(`Cannot find player ${name}`);
+      }
+      return player;
+    });
+    if (errors.length) {
+      channel.send(errors.join('\n'));
+    }
+    players.unshift(this.slack.getUserByID(initiator));
+
+    let fromPoll = PlayerInteraction.pollPotentialPlayers(messages, channel)
+      .map(id => this.slack.getUserByID(id));
+    let fromCmd = Rx.Observable.fromArray(players);
+    let newPlayerStream = Rx.Observable.merge(fromPoll, fromCmd).distinct(player => player.id);
+
+    return newPlayerStream.buffer(newPlayerStream.debounce(1000))
+      .reduce((players, newPlayers) => {
+        players.apply(players,[0,0].concat(newPlayers));
+        let messages = newPlayers.map(player => `${M.formatAtUser(player)} has joined the game`);
         if (players.length > 1) {
-          message += ` (${players.length} players in game so far)`;
+          messages[messages.length - 1] += ` (${players.length} players in game so far)`;
         }
-        channel.send(message);
+        channel.send(messages.join('\n'));
         return players;
       }, [])
       .flatMap(players => {
