@@ -10,3 +10,8 @@ gulp.task('ofc', function () {
   return gulp.src('tests/chinese-poker-spec.js', {read: false})
     .pipe(mocha({reporter: 'spec'}));
 });
+
+gulp.task('avalon', function () {
+  return gulp.src('tests/avalon-spec.js', {read: false})
+    .pipe(mocha({reporter: 'spec'}));
+});
