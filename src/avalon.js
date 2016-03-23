@@ -42,6 +42,11 @@ class Avalon {
   static get MIN_PLAYERS() {
     return 5;
   }
+
+  static get MAX_PLAYERS() {
+    return 10;
+  }
+
   constructor(slack, messages, channel, players, scheduler=rx.Scheduler.timeout) {
     this.slack = slack;
     this.messages = messages;

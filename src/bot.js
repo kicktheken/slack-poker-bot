@@ -60,42 +60,14 @@ class Bot {
   // Returns a {Disposable} that will end this subscription
   handleDealGameMessages(messages, atMentions) {
     let trigger = messages.where(e => e.text && e.text.toLowerCase().match(/^play avalon/i));
-    let dmStart = trigger.where(e => !!this.slack.dms[e.channel]).map(e => e.text.split(/[,\s]+/).slice(2))
-      .map(playerNames => {
-        let channel = this.slack.dms[e.channel];
-        if (this.isPolling) {
-          channel.send(`Another game is polling in a different channel`);
-          return [];
-        } else if (this.isGameRunning) {
-          channel.send('Another game is in progress, quit that first.');
-          return [];
-        }
-        let errors = [];
-        let players = playerNames.map(name => {
-          let player = this.slack.getUserByName(name);
-          if (!player) {
-            errors.push(`Cannot find player ${name}`);
-          }
-          return player;
-        });
-        if (!playerNames.length) {
-          errors.push(`Usage: \`play avalon <player1> <player2> ...\``);
-        } else if (players.length < 5 || players.length > 10) {
-          errors.push(`Avalon is requires 5-10 players. You've inputed ${players.length} valid players.`)
-        }
-        if (errors.length) {
-          channel.send(errors.join('\n'));
-        }
-        return players;
-      })
-      .where(players => players.length >= 5 && players.length <= 10);
+    trigger.map(e => this.slack.dms[e.channel]).where(channel => !!channel).do(channel => {
+      channel.send(`Message to a channel to play avalon.`);
+    }).subscribe();
 
-
-    let groupStart = trigger.map(e => {
+    return trigger.map(e => {
       return {
         channel: this.slack.channels[e.channel] || this.slack.groups[e.channel],
-        initiator: e.user,
-        playerNames: e.text.split(/[,\s]+/).slice(2)
+        initiator: e.user
       };
     }).where(starter => !!starter.channel)
       .where(starter => {
@@ -108,8 +80,12 @@ class Bot {
         return true;
       })
       .flatMap(starter => this.pollPlayersForGame(messages, starter.channel, starter.initiator, starter.playerNames))
-
-    let startGame =
+      .flatMap(starter => {
+        this.isPolling = false;
+        this.addBotPlayers(starter.players);
+        
+        return this.startGame(messages, starter.channel, starter.players);
+      })
       .subscribe();
   }
   
@@ -141,43 +117,72 @@ class Bot {
   // channel - The channel where the deal message was posted
   //
   // Returns an {Observable} that signals completion of the game 
-  pollPlayersForGame(messages, channel, initiator, playerNames) {
+  pollPlayersForGame(messages, channel, initiator, specialChars, scheduler=rx.Scheduler.timeout, timeout=30) {
     this.isPolling = true;
 
-    let errors = [];
-    let players = playerNames.map(name => {
-      let player = this.slack.getUserByName(name);
-      if (!player) {
-        errors.push(`Cannot find player ${name}`);
-      }
-      return player;
-    });
-    if (errors.length) {
-      channel.send(errors.join('\n'));
-    }
-    players.unshift(this.slack.getUserByID(initiator));
+    channel.send('Who wants to play Avalon? https://cf.geekdo-images.com/images/pic1398895_md.jpg');
 
-    let fromPoll = PlayerInteraction.pollPotentialPlayers(messages, channel)
+    // let formatMessage = t => [
+    //   'Respond with:',
+    //   '\t`include percival,morgana,mordred,oberon,lady` to include special roles',
+    //   '\t`add <player1>,<player2>` to add players',
+    //   `\t\`yes\` to join${M.timer(t)}.`
+    // ].join('\n');
+    let formatMessage = t => `Respond with *'yes'* in this channel${M.timer(t)}.`;
+    let timeExpired = PlayerInteraction.postMessageWithTimeout(channel, formatMessage, scheduler, timeout);
+
+    // Look for messages containing the word 'yes' and map them to a unique
+    // user ID, constrained to `maxPlayers` number of players.
+    let pollPlayers = messages.where(e => e.text && e.text.toLowerCase().match(/\byes\b/))
+      .map(e => e.user)
       .map(id => this.slack.getUserByID(id));
-    let fromCmd = Rx.Observable.fromArray(players);
-    let newPlayerStream = Rx.Observable.merge(fromPoll, fromCmd).distinct(player => player.id);
+    timeExpired.connect();
 
-    return newPlayerStream.buffer(newPlayerStream.debounce(1000))
-      .reduce((players, newPlayers) => {
-        players.apply(players,[0,0].concat(newPlayers));
-        let messages = newPlayers.map(player => `${M.formatAtUser(player)} has joined the game`);
-        if (players.length > 1) {
-          messages[messages.length - 1] += ` (${players.length} players in game so far)`;
+    let addPlayers = messages//.where(e => e.user == initiator)
+      .where(e => e.text && e.text.trim().match(/add /i))
+      .map(e => e.text.split(/[,\s]+/).slice(1))
+      .flatMap(playerNames => {
+        let errors = [];
+        let players = playerNames.map(name => {
+          let player = this.slack.getUserByName(name.toLowerCase());
+          if (!player) {
+            errors.push(`Cannot find player ${name}`);
+          }
+          return player;
+        }).filter(player => !!player);
+        // players.add(this.slack.getUserById(id));
+        if (errors.length) {
+          channel.send(errors.join('\n'));
         }
-        channel.send(messages.join('\n'));
+        return rx.Observable.fromArray(players);
+      })
+
+    let newPlayerStream = rx.Observable.merge(pollPlayers, addPlayers)
+      .takeUntil(timeExpired);
+
+    return newPlayerStream.bufferWithTime(300)
+      .reduce((players, newPlayers) => {
+        if (newPlayers.length) {
+          let messages = [];
+          newPlayers = newPlayers.filter(player => {
+            if (players.find(p => p.id == player.id)) {
+              messages.push(`${M.formatAtUser(player)} has already joined`);
+              return false;
+            }
+            return true;
+          })
+          players.splice.apply(players,[0,0].concat(newPlayers));
+          messages = messages.concat(newPlayers.map(player => `${M.formatAtUser(player)} has joined the game`));
+          if (players.length > 1 && players.length < Avalon.MAX_PLAYERS) {
+            messages[messages.length - 1] += ` (${players.length} players in game so far)`;
+          } else if (players.length == Avalon.MAX_PLAYERS) {
+            messages[messages.length - 1] += ` (maximum ${players.length} players in game)`;
+          }
+          channel.send(messages.join('\n'));
+        }
         return players;
       }, [])
-      .flatMap(players => {
-        this.isPolling = false;
-        this.addBotPlayers(players);
-        
-        return this.startGame(messages, channel, players);
-      });
+      .map(players => { return{ channel: channel, players: players}})
   }
 
   // Private: Starts and manages a new Chinese Poker game.
@@ -189,14 +194,13 @@ class Bot {
   // Returns an {Observable} that signals completion of the game 
   startGame(messages, channel, players) {
     if (players.length < Avalon.MIN_PLAYERS) {
-      channel.send('Not enough players for a game. Avalon requires 5-10 players.');
+      channel.send(`Not enough players for a game. Avalon requires ${Avalon.MIN_PLAYERS}-${Avalon.MAX_PLAYERS} players.`);
       return rx.Observable.return(null);
     }
 
     channel.send(`We've got ${players.length} players, let's start the game.`);
     this.isGameRunning = true;
     
-    //let game = new TexasHoldem(this.slack, messages, channel, players);
     let game = new Avalon(this.slack, messages, channel, players);
     _.extend(game, this.gameConfig);
 
