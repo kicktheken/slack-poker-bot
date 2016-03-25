@@ -1,4 +1,4 @@
-## Slack Poker Bot [![Build Status](https://travis-ci.org/CharlieHess/slack-poker-bot.png)](https://travis-ci.org/CharlieHess/slack-poker-bot)
+## Slack Poker Bot [![Build Status](https://travis-ci.org/kicktheken/slack-poker-bot.svg)](https://travis-ci.org/kicktheken/slack-poker-bot)
 
 A bot that turns Slack into a legitimate Texas Hold'em client. Start a game in any channel or private group with 2-10 players. PokerBot will deal hands, direct message players with their hole cards, query players for their action, determine the winning hand, and handle the pot.
 
