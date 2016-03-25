@@ -10,18 +10,22 @@ const ROLE = {
   'bad': ':red_circle: Minion of Mordred',
   'good': ':large_blue_circle: Loyal Servent of Arthur',
   'assassin': ':crossed_swords: THE ASSASSIN :red_circle: Minion of Mordred',
+  'oberon': ':alien: OBERON :red_circle: Minion of Mordred',
+  'morgana': ':japanese_ogre: MORGANA :red_circle: Minion of Mordred. You pose as MERLIN',
+  'mordred': ':smiling_imp: MORDRED :red_circle: Unknown to MERLIN',
+  'percival': ':cop: PERCIVAL :large_blue_circle: Loyal Servent of Arthur',
   'merlin': ':angel: MERLIN :large_blue_circle: Loyal Servent of Arthur'
 };
 const ROLE_ASSIGNS = [
   // ['assassin', 'merlin'],
   // ['assassin', 'good', 'merlin'],
   // ['assassin', 'good', 'good', 'merlin'],
-  ['bad', 'assassin', 'good', 'good', 'merlin'],
-  ['bad', 'assassin', 'good', 'good', 'good', 'merlin'],
-  ['bad', 'bad', 'assassin', 'good', 'good', 'good', 'merlin'],
-  ['bad', 'bad', 'assassin', 'good', 'good', 'good', 'good', 'merlin'],
-  ['bad', 'bad', 'assassin', 'good', 'good', 'good', 'good', 'good', 'merlin'],
-  ['bad', 'bad', 'bad', 'assassin', 'good', 'good', 'good', 'good', 'good', 'merlin']
+  ['morgana', 'assassin', 'good', 'percival', 'merlin'],
+  ['morgana', 'assassin', 'good', 'good', 'percival', 'merlin'],
+  ['bad', 'morgana', 'assassin', 'good', 'good', 'percival', 'merlin'],
+  ['bad', 'morgana', 'assassin', 'good', 'good', 'good', 'percival', 'merlin'],
+  ['bad', 'morgana', 'assassin', 'good', 'good', 'good', 'good', 'percival', 'merlin'],
+  ['bad', 'bad', 'morgana', 'assassin', 'good', 'good', 'good', 'good', 'percival', 'merlin']
 ];
 
 const ORDER = ['first', 'second', 'third', 'fourth', 'last'];
@@ -72,15 +76,30 @@ class Avalon {
     for (let i=0; i < players.length; i++) {
       let player = players[i];
       player.role = assigns[i];
-      if (player.role == 'assassin' || player.role == 'bad') {
+      if (player.role != 'good' && player.role != 'merlin' && player.role != 'percival') {
         evils.push(player);
       }
     }
 
+    let knownEvils = evils.filter(player => player.role != 'oberon');
     for (let player of this.players) {
       let message = `\`\`\`${_.times(60,_.constant('\n')).join('')}\`\`\` You are ${ROLE[player.role]}`;
-      if (player.role != 'good') {
-        message += `. ${this.pp(evils)} are evil`;
+      if (player.role == 'merlin') {
+        let evilButMordred = evils.filter(p => p.role != 'mordred');
+        if (evilButMordred.length == evils.length) {
+          message += `. ${this.pp(evils)} are evil.`;
+        } else {
+          message += `. ${this.pp(evilButMordred)} are evil. MORDRED is hidden.`;
+        }
+      } else if (player.role == 'percival') {
+        let merlins = players.filter(p => p.role == 'morgana' || p.role == 'merlin');
+        if (merlins.length == 1) {
+          messages += `. ${M.formatAtUser(merlins[0])} is MERLIN`;
+        } else if (merlins.length > 1) {
+          messages += `. One of ${this.pp(merlins)} is MERLIN`;
+        }
+      } else if (player.role != 'good' && player.role != 'oberon') {
+        message += `. ${this.pp(knownEvils)} are evil`;
       }
       message += ` \`\`\`${_.times(60,_.constant('\n')).join('')}Scroll up to see your role\`\`\``;
       this.playerDms[player.id].send(message);
@@ -107,17 +126,28 @@ class Avalon {
       .concatMap(player => this.deferredActionForPlayer(player));
   }
 
+  revealRoles(excludeMerlin=false) {
+    let lines = [`${this.pp(this.evils)} are :red_circle: Minions of Mordred.`];
+    let reveals = {};
+    for (let player of this.players) {
+      if (player.role == 'merlin' && !excluedMerlin) {
+        reveals['merlin'] = `${M.formatAtUser(player)} is :angel: MERLIN`;
+      } else if (player.role == 'percival') {
+        reveals['percival'] = `${M.formatAtUser(player)} is :cop: PERCIVAL`;
+      } else if (player.role == 'morgana') {
+        reveals['morgana'] = `${M.formatAtUser(player)} is :japanese_ogre: MORGANA`;
+      } else if (player.role == 'mordred') {
+        reveals['mordred'] = `${M.formatAtUser(player)} is :smiling_imp: MORDRED`;
+      } else if (player.role == 'oberon') {
+        reveals['oberon'] = `${M.formatAtUser(player)} is :alien: OBERON`;
+      }
+    }
+    return lines.concat(Object.keys(ROLES).filter(role => !!reveals[role]).map(role => reveals[role])).join('\n');
+  }
+
   endGame(message, color, current=false) {
     let status = `Quest Results: ${this.getStatus(current)}`;
-    if (message && message.length) {
-      message += `\n${status}\n${this.pp(this.evils)} are :red_circle: Minions of Mordred.`;
-      let merlin = this.players.filter(player => player.role == 'merlin');
-      if (merlin.length) {
-        message += `\n${M.formatAtUser(merlin[0])} is :angel: Merlin`;
-      }
-    } else {
-      message = `${status}\n${this.pp(this.evils)} are Minions of Mordred.`;
-    }
+    message += `\n${status}\n${this.revealRoles()}`;
     this.broadcast(message, color, 'end');
     this.quit();
   }
@@ -333,9 +363,9 @@ class Avalon {
             return rx.Observable.timer(1000, this.scheduler).flatMap(() => {
               for (let player of this.players) {
                 if (player.id == assassin.id) {
-                  this.dm(player, `*You* are the :red_circle::crossed_swords:Assassin. Type \`kill <player>\` to attempt to kill Merlin`, '#e00');
+                  this.dm(player, `*You* are the :red_circle::crossed_swords:ASSASSIN. Type \`kill <player>\` to attempt to kill MERLIN`, '#e00');
                 } else {
-                  this.dm(player, `*${M.formatAtUser(assassin)}* is the :red_circle::crossed_swords:Assassin. Awaiting the Merlin assassination attempt...`);
+                  this.dm(player, `*${M.formatAtUser(assassin)}* is the :red_circle::crossed_swords:ASSASSIN. Awaiting the MERLIN assassination attempt...`);
                 }
               }
               return rx.Observable.return(true).flatMap(() => {
@@ -359,17 +389,17 @@ class Avalon {
                     if (accused.role != 'merlin') {
                       for (let player of this.players) {
                         if (player.id == assassin.id) {
-                          this.dm(player, `${status}${M.formatAtUser(accused)} is not Merlin. :angel:${M.formatAtUser(merlin)} is. :large_blue_circle: Loyal Servants of Arthur win!`, '#08e', 'end');
+                          this.dm(player, `${status}${M.formatAtUser(accused)} is not MERLIN. :angel:${M.formatAtUser(merlin)} is.\n:large_blue_circle: Loyal Servants of Arthur win!\n${this.revealRoles(true)}`, '#08e', 'end');
                         } else {
-                          this.dm(player, `${status}:crossed_swords:${M.formatAtUser(assassin)} chose ${M.formatAtUser(accused)} as Merlin, not :angel:${M.formatAtUser(merlin)}. :large_blue_circle: Loyal Servants of Arthur win!`, '#08e', 'end');
+                          this.dm(player, `${status}:crossed_swords:${M.formatAtUser(assassin)} chose ${M.formatAtUser(accused)} as MERLIN, not :angel:${M.formatAtUser(merlin)}.\n:large_blue_circle: Loyal Servants of Arthur win!\n${this.revealRoles(true)}`, '#08e', 'end');
                         }
                       }
                     } else {
                       for (let player of this.players) {
                         if (player.id == assassin.id) {
-                          this.dm(player, `${status}You chose :angel:${M.formatAtUser(accused)} correctly as Merlin. :red_circle: Minions of Mordred win!`, '#e00', 'end');
+                          this.dm(player, `${status}You chose :angel:${M.formatAtUser(accused)} correctly as MERLIN.\n:red_circle: Minions of Mordred win!\n${this.revealRoles(true)}`, '#e00', 'end');
                         } else {
-                          this.dm(player, `${status}:crossed_swords:${M.formatAtUser(assassin)} chose :angel:${M.formatAtUser(accused)} correctly as Merlin. :red_circle: Minions of Mordred win!`, '#e00', 'end');
+                          this.dm(player, `${status}:crossed_swords:${M.formatAtUser(assassin)} chose :angel:${M.formatAtUser(accused)} correctly as MERLIN.\n:red_circle: Minions of Mordred win!\n${this.revealRoles(true)}`, '#e00', 'end');
                         }
                       }
                     }
