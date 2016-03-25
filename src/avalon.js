@@ -216,15 +216,15 @@ class Avalon {
         return this.choosePlayersForQuest(player)
           .concatMap(votes => {
             let printQuesters = M.pp(this.questPlayers);
-            if (votes.approved.length >= votes.rejected.length) {
-              this.broadcast(`The ${ORDER[this.questNumber]} quest with ${printQuesters} going was approved by ${M.pp(votes.approved)}`)
+            if (votes.approved.length > votes.rejected.length) {
+              this.broadcast(`The ${ORDER[this.questNumber]} quest with ${printQuesters} going was approved by ${M.pp(votes.approved)} (${M.pp(votes.rejected)} rejected)`)
               this.rejectCount = 0;
               return rx.Observable.defer(() => rx.Observable.timer(timeToPause, this.scheduler).flatMap(() => {
                 return this.runQuest(this.questPlayers, player);
               }));
             }
             this.rejectCount++;
-            this.broadcast(`The ${ORDER[this.questNumber]} quest with ${printQuesters} going was rejected (${this.rejectCount}) by ${M.pp(votes.rejected)}`)
+            this.broadcast(`The ${ORDER[this.questNumber]} quest with ${printQuesters} going was rejected (${this.rejectCount}) by ${M.pp(votes.rejected)} (${M.pp(votes.approved)} approved)`)
             if (this.rejectCount >= 5) {
               this.endGame(`:red_circle: Minions of Mordred win due to the ${ORDER[this.questNumber]} quest rejected 5 times!`, '#e00', true);
             }
@@ -268,10 +268,12 @@ class Avalon {
       })
       .concatMap(questPlayers => {
         this.questPlayers = questPlayers;
-        this.dm(player, `You've chosen ${M.pp(questPlayers)} to go on the ${ORDER[this.questNumber]} quest. Awaiting votes...`);
-        return rx.Observable.fromArray(this.players.filter(p => p.id != player.id))
+        this.dm(player, `You've chosen ${M.pp(questPlayers)} to go on the ${ORDER[this.questNumber]} quest.\nVote *approve* or *reject*`, '#555');
+        return rx.Observable.fromArray(this.players)
           .map(p => {
-            this.dm(p, `${M.formatAtUser(player)} is sending ${M.pp(questPlayers)} to the ${ORDER[this.questNumber]} quest.\nVote *approve* or *reject*`, '#555');
+            if (p.id != player.id) {
+              this.dm(p, `${M.formatAtUser(player)} is sending ${M.pp(questPlayers)} to the ${ORDER[this.questNumber]} quest.\nVote *approve* or *reject*`, '#555');
+            }
             return this.dmMessages(p)
               .where(e => e.user === p.id)
               .map(e => e.text)
