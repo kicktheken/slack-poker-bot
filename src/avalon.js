@@ -94,9 +94,9 @@ class Avalon {
       } else if (player.role == 'percival') {
         let merlins = players.filter(p => p.role == 'morgana' || p.role == 'merlin');
         if (merlins.length == 1) {
-          messages += `. ${M.formatAtUser(merlins[0])} is MERLIN`;
+          message += `. ${M.formatAtUser(merlins[0])} is MERLIN`;
         } else if (merlins.length > 1) {
-          messages += `. One of ${M.pp(merlins)} is MERLIN`;
+          message += `. One of ${M.pp(merlins)} is MERLIN`;
         }
       } else if (player.role != 'good' && player.role != 'oberon') {
         message += `. ${M.pp(knownEvils)} are evil`;
