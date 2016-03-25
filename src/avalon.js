@@ -157,6 +157,23 @@ class Avalon {
     if (color) attachment.color = color;
     if (special == 'start') {
       attachment.pretext = `*Start Avalon Game* (${this.date})`;
+      let prependText = `${this.evils.length} out of ${this.players.length} players are evil.`;
+      let specialRoles = this.players.filter(p => p.role != 'good' && p.role != 'bad' || p.role != 'assassin');
+      if (specialRoles.length) {
+        specialRoles = specialRoles.map(p => p.role);
+        Object.keys(ROLES).filter(role => specialRoles.indexOf(role) >= 0).map(role => {
+          switch(role) {
+            case 'merlin': return ':angel: MERLIN';
+            case 'percival': return ':cop: PERCIVAL';
+            case 'morgana': return ':japanese_ogre: MORGANA';
+            case 'mordred': return ':smiling_imp: MORDRED';
+            case 'oberon': return ':alien: OBERON';
+          }
+        }).join(', ');
+        attachment.text = `${prependText}\nSpecial roles: ${specialRoles}\n${message}`;
+      } else {
+        attachment.text = `${prependText}\n${message}`;
+      }
       attachment.thumb_url = 'https://cf.geekdo-images.com/images/pic1398895_md.jpg';
     } else if (special == 'end') {
       attachment.pretext = `*End Avalon Game* (${this.date})`;
