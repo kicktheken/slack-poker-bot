@@ -164,19 +164,32 @@ class Bot {
       .reduce((players, newPlayers) => {
         if (newPlayers.length) {
           let messages = [];
+          let joinedAlready = [];
           newPlayers = newPlayers.filter(player => {
             if (players.find(p => p.id == player.id)) {
-              messages.push(`${M.formatAtUser(player)} has already joined`);
+              joinedAlready.push(player);
               return false;
             }
             return true;
-          })
+          });
+          if (joinedAlready.length) {
+            messages.push(`${M.pp(joinedAlready)} ${joinedAlready.length > 1 ? 'are' : 'is'} already in the game.`);
+          }
+          if (players.length + newPlayers.length > Avalon.MAX_PLAYERS) {
+            let excessPlayers = newPlayers.slice(Avalon.MAX_PLAYERS);
+            newPlayers = newPlayers.slice(0, Avalon.MAX_PLAYERS);
+            messages.push(`${M.pp(newPlayers)} ${newPlayers.length > 1 ? 'have' : 'has'} joined the game.`);
+            messages.push(`${M.pp(excessPlayers)} cannot join because game is full.`);
+          } else if (newPlayers.length) {
+            messages.push(`${M.pp(newPlayers)} ${newPlayers.length > 1 ? 'have' : 'has'} joined the game.`);
+          }
+
           players.splice.apply(players,[0,0].concat(newPlayers));
-          messages = messages.concat(newPlayers.map(player => `${M.formatAtUser(player)} has joined the game`));
+          
           if (players.length > 1 && players.length < Avalon.MAX_PLAYERS) {
-            messages[messages.length - 1] += ` (${players.length} players in game so far)`;
+            messages.push(`${players.length} players ${M.pp(players)} are in game so far.`);
           } else if (players.length == Avalon.MAX_PLAYERS) {
-            messages[messages.length - 1] += ` (maximum ${players.length} players in game)`;
+            messages.push(`Maximum ${players.length} players ${M.pp(players)} are in game so far.`);
           }
           channel.send(messages.join('\n'));
         }

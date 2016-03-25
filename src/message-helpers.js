@@ -12,6 +12,10 @@ class MessageHelpers {
     return `<@${user.id}|${user.name}>`
   }
 
+  static pp(userArray) {
+    return userArray.map(user => MessageHelpers.formatAtUser(user)).join(', ');
+  }
+
   static pts(n,space=3,dollar='') {
     return `${n < 0 ? '-' : '+'}${_.padStart(dollar+Math.abs(n),space-1)}`;
   }
