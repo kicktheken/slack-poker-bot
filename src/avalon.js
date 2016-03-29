@@ -71,8 +71,11 @@ class Avalon {
         assigns[assigns.indexOf('good')] = 'percival';
       }
       let bad = 0;
-      assigns[assigns.indexOf('bad')] = 'assassin';
       assigns = assigns.map((role,i) => role == 'bad' && bad < specialEvils.length ? specialEvils[bad++] : role);
+      let badIndex = assigns.indexOf('bad');
+      if (badIndex >= 0) {
+        assigns[badIndex] = 'assassin';
+      }
     }
     return assigns;
   }
@@ -147,6 +150,16 @@ class Avalon {
 
   playerOrder(players) {
     return _.shuffle(players);
+  }
+
+  getAssassin() {
+    let assassin = this.evils.filter(player => player.role == 'assassin');
+    if (assassin.length) {
+      assassin = assassin[0];
+    } else {
+      assassin = _.shuffle(this.evils)[0];
+    }
+    return assassin;
   }
 
   quit() {
@@ -405,13 +418,14 @@ class Avalon {
         if (score.bad == 3) {
           this.endGame(`:red_circle: Minions of Mordred win by failing 3 quests!`, '#e00');
         } else if (score.good == 3) {
-          let assassin = this.players.filter(player => player.role == 'assassin');
-          if (!assassin.length) {
+          let merlin = this.players.filter(player => player.role == 'merlin');
+          if (!merlin.length) {
             this.endGame(`:large_blue_circle: Loyal Servents of Arthur win by succeeding 3 quests!`, '#08e');
             return rx.Observable.return(true);
           }
-          let merlin = this.players.filter(player => player.role == 'merlin')[0];
-          assassin = assassin[0];
+          let assassin = this.getAssassin();
+          merlin = merlin[0];
+          
           this.broadcast(`Victory is near for :large_blue_circle: Loyal Servents of Arthur for succeeding 3 quests!`);
           return rx.Observable.defer(() => {
             return rx.Observable.timer(1000, this.scheduler).flatMap(() => {
