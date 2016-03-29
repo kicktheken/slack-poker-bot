@@ -17,6 +17,7 @@
     "mocha": "^2.2.4"
   },
   "dependencies": {
+    "babel": "^6.7.4",
     "rx": "^4.0.7",
     "slack-client": "^1.4.1",
     "lodash": "^4.0.1"
