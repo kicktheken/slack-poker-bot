@@ -1,3 +1,4 @@
+'use strict';
 const rx = require('rx');
 const _ = require('lodash');
 const SlackApiRx = require('./slack-api-rx');
@@ -60,7 +61,8 @@ class Avalon {
     };
   }
 
-  static getAssigns(numPlayers, specialRoles, resistance=false) {
+  static getAssigns(numPlayers, specialRoles, resistance) {
+    resistance = resistance || false;
     let assigns = ROLE_ASSIGNS[numPlayers - Avalon.MIN_PLAYERS].slice(0);
     if (!resistance) {
       assigns[assigns.indexOf('good')] = 'merlin';
@@ -75,7 +77,8 @@ class Avalon {
     return assigns;
   }
 
-  constructor(slack, messages, players, scheduler=rx.Scheduler.timeout) {
+  constructor(slack, messages, players, scheduler) {
+    scheduler = scheduler || rx.Scheduler.timeout;
     this.slack = slack;
     this.messages = messages;
     this.players = players;
@@ -84,7 +87,8 @@ class Avalon {
     _.extend(this, Avalon.DEFAULT_CONFIG);
   }
 
-  start(playerDms, timeBetweenRounds=1000) {
+  start(playerDms, timeBetweenRounds) {
+    timeBetweenRounds = timeBetweenRounds || 1000;
     this.isRunning = true;
     this.questNumber = 0;
     this.rejectCount = 0;
@@ -157,7 +161,8 @@ class Avalon {
       .concatMap(player => this.deferredActionForPlayer(player));
   }
 
-  revealRoles(excludeMerlin=false) {
+  revealRoles(excludeMerlin) {
+    excludeMerlin = excludeMerlin || false;
     let lines = [`${M.pp(this.evils)} are :red_circle: Minions of Mordred.`];
     let reveals = {};
     for (let player of this.players) {
@@ -176,7 +181,8 @@ class Avalon {
     return lines.concat(Object.keys(ROLES).filter(role => !!reveals[role]).map(role => reveals[role])).join('\n');
   }
 
-  endGame(message, color, current=false) {
+  endGame(message, color, current) {
+    current = current || false;
     let status = `Quest Results: ${this.getStatus(current)}`;
     message += `\n${status}\n${this.revealRoles()}`;
     this.broadcast(message, color, 'end');
@@ -224,7 +230,8 @@ class Avalon {
     return QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][this.questNumber];
   }
 
-  deferredActionForPlayer(player, timeToPause=3000) {
+  deferredActionForPlayer(player, timeToPause) {
+    timeToPause = timeToPause || 3000;
     return rx.Observable.defer(() => {
       return rx.Observable.timer(timeToPause, this.scheduler).flatMap(() => {
         let questAssign = this.questAssign();
@@ -330,7 +337,8 @@ class Avalon {
       }, { approved: [], rejected: [] })
   }
 
-  getStatus(current = false) {
+  getStatus(current) {
+    current = current || false;
     let status = this.progress.map((res,i) => {
       let questAssign = QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][i];
       let circle = res == 'good' ? ':large_blue_circle:': ':red_circle:';

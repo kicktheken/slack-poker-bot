@@ -1,3 +1,4 @@
+'use strict';
 const rx = require('rx');
 const _ = require('lodash');
 const M = require('./message-helpers')
@@ -14,7 +15,10 @@ class PlayerInteraction {
   //
   // Returns an {Observable} that will `onNext` for each player that joins and
   // `onCompleted` when time expires or the max number of players join.
-  static pollPotentialPlayers(messages, channel, scheduler=rx.Scheduler.timeout, timeout=30, maxPlayers=10) {
+  static pollPotentialPlayers(messages, channel, scheduler, timeout, maxPlayers) {
+    scheduler = scheduler || rx.Scheduler.timeout;
+    timeout = timeout || 30;
+    maxPlayers = maxPlayers || 10;
     channel.send('Who wants to play Avalon? https://cf.geekdo-images.com/images/pic1398895_md.jpg');
     let formatMessage = t => `Respond with *'yes'* in this channel${M.timer(t)}.`;
     let timeExpired = PlayerInteraction.postMessageWithTimeout(channel, formatMessage, scheduler, timeout);
@@ -45,8 +49,9 @@ class PlayerInteraction {
   //
   // Returns an {Observable} indicating the action the player took. If time
   // expires, a 'timeout' action is returned.
-  static getActionForPlayer(messages, channel, player, previousActions,
-    scheduler=rx.Scheduler.timeout, timeout=30) {
+  static getActionForPlayer(messages, channel, player, previousActions, scheduler, timeout) {
+    scheduler = scheduler || rx.Scheduler.timeout;
+    timeout = timeout || 30;
     let availableActions = PlayerInteraction.getAvailableActions(player, previousActions);
     let formatMessage = t => PlayerInteraction.buildActionMessage(player, availableActions, t);
     

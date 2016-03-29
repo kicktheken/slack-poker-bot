@@ -1,3 +1,4 @@
+'use strict';
 const _ = require('lodash');
 
 class MessageHelpers {
@@ -16,7 +17,9 @@ class MessageHelpers {
     return userArray.map(user => MessageHelpers.formatAtUser(user)).join(', ');
   }
 
-  static pts(n,space=3,dollar='') {
+  static pts(n,space,dollar) {
+    space = space || 3;
+    dollar = dollar || '';
     return `${n < 0 ? '-' : '+'}${_.padStart(dollar+Math.abs(n),space-1)}`;
   }
 

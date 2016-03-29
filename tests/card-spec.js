@@ -1,5 +1,3 @@
-require('babel/register');
-
 var assert = require('chai').assert;
 
 var Card = require('../src/card');

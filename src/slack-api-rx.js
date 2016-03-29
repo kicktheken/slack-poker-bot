@@ -1,3 +1,4 @@
+'use strict';
 const rx = require('rx');
 
 module.exports = class SlackApiRx {

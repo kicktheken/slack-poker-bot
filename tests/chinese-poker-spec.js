@@ -1,5 +1,3 @@
-require('babel/register');
-
 const rx = require('rx');
 const _ = require('lodash');
 const assert = require('chai').assert;

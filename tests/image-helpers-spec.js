@@ -1,5 +1,3 @@
-require('babel/register');
-
 var rx = require('rx');
 var lwip = require('lwip');
 var assert = require('chai').assert;

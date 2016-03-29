@@ -1,3 +1,4 @@
+'use strict';
 const rx = require('rx');
 const _ = require('lodash');
 
@@ -8,9 +9,6 @@ const SlackApiRx = require('./slack-api-rx');
 const M = require('./message-helpers');
 const PlayerInteraction = require('./player-interaction');
 const Avalon = require('./avalon');
-
-const WeakBot = require('../ai/weak-bot');
-const AggroBot = require('../ai/aggro-bot');
 
 class Bot {
   // Public: Creates a new instance of the bot.
@@ -240,7 +238,9 @@ class Bot {
   // channel - The channel where the deal message was posted
   //
   // Returns an {Observable} that signals completion of the game 
-  pollPlayersForGame(messages, channel, initiator, specialChars, scheduler=rx.Scheduler.timeout, timeout=30) {
+  pollPlayersForGame(messages, channel, initiator, specialChars, scheduler, timeout) {
+    scheduler = scheduler || rx.Scheduler.timeout;
+    timeout = timeout || 30;
     this.isPolling = true;
 
     if (this.gameConfig.resistance) {
@@ -367,11 +367,6 @@ class Bot {
   //
   // players - The players participating in the game
   addBotPlayers(players) {
-    //let bot1 = new WeakBot('Phil Hellmuth');
-    //players.push(bot1);
-    
-    //let bot2 = new AggroBot('Phil Ivey');
-    //players.push(bot2);
   }
 
   welcomeMessage() {
