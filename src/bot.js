@@ -45,8 +45,12 @@ class Bot {
     let messages = rx.Observable.fromEvent(this.slack, 'message')
       .where(e => e.type === 'message');
 
-    let atMentions = messages.where(e => 
-      M.containsUserMention(e.text, this.slack.self.id));
+    rx.Observable.fromEvent(this.slack, 'message').where(e => e.subtype === 'channel_join').subscribe(e => {
+      let channel = this.slack.getChannelGroupOrDMByID(e.channel);
+      channel.send(this.welcomeMessage());
+    });
+
+    let atMentions = messages.where(e => e.text && e.text.toLowerCase().match(this.slack.self.name));
 
     let disp = new rx.CompositeDisposable();
         
@@ -82,27 +86,27 @@ class Bot {
       let valid = false;
       let messages = [];
       let index = 0;
-      if (specialRoles.find('morgana')) {
+      if (specialRoles.indexOf('morgana') >= 0) {
         messages.push(`Added MORGANA to roles (which includes PERCIVAL)`);
         this.includeRole('morgana');
         this.includeRole('percival');
         valid = true;
-      } else if (specialRoles.find('percival')) {
+      } else if (specialRoles.indexOf('percival') >= 0) {
         messages.push(`Added PERCIVAL to roles`);
         this.includeRole('percival');
         valid = true;
       }
-      if (specialRoles.find('mordred')) {
+      if (specialRoles.indexOf('mordred') >= 0) {
         messages.push(`Added MORDRED to roles`);
-        this.includeRole('merlin');
+        this.includeRole('mordred');
         valid = true;
       }
-      if (specialRoles.find('oberon')) {
+      if (specialRoles.indexOf('oberon') >= 0) {
         messages.push(`Added OBERON to roles`);
-        this.includeRole('merlin');
+        this.includeRole('oberon');
         valid = true;
       }
-      if (specialRoles.find('lady')) {
+      if (specialRoles.indexOf('lady') >= 0) {
         messages.push(`Added LADY OF THE LAKE`);
         this.gameConfig.lady = true;
         valid = true;
@@ -120,7 +124,7 @@ class Bot {
       let valid = false;
       let messages = [];
       let index = 0;
-      if (specialRoles.find('percival')) {
+      if (specialRoles.indexOf('percival') >= 0) {
         if (this.excludeRole('morgana')) {
           messages.push(`Removed PERCIVAL from roles (also removed dependent role MORGANA)`);
         } else {
@@ -128,22 +132,22 @@ class Bot {
         }
         this.excludeRole('percival');
         valid = true;
-      } else if (specialRoles.find('morgana')) {
+      } else if (specialRoles.indexOf('morgana') >= 0) {
         this.excludeRole('morgana');
         messages.push(`Removed MORGANA from roles`);
         valid = true;
       }
-      if (specialRoles.find('mordred')) {
+      if (specialRoles.indexOf('mordred') >= 0) {
         messages.push(`Removed MORDRED from roles`);
         this.excludeRole('mordred');
         valid = true;
       }
-      if (specialRoles.find('oberon')) {
+      if (specialRoles.indexOf('oberon') >= 0) {
         messages.push(`Removed OBERON from roles`);
         this.excludeRole('oberon');
         valid = true;
       }
-      if (specialRoles.find('lady')) {
+      if (specialRoles.indexOf('lady') >= 0) {
         messages.push(`Removed LADY OF THE LAKE`);
         this.gameConfig.lady = false;
         valid = true;
@@ -172,7 +176,7 @@ class Bot {
 
   includeRole(role) {
     this.excludeRole(role);
-    this.gameConfig.specialRoles.unshift(role);
+    this.gameConfig.specialRoles.push(role);
   }
 
   excludeRole(role) {
@@ -375,11 +379,19 @@ class Bot {
     //players.push(bot2);
   }
 
+  welcomeMessage() {
+    return `Hi! I can host Avalon games. Type \`play avalon\` to play or \`${this.slack.self.name} help\` for help.`
+  }
+
   // Private: Save which channels and groups this bot is in and log them.
   onClientOpened() {
     this.channels = _.keys(this.slack.channels)
       .map(k => this.slack.channels[k])
       .filter(c => c.is_member);
+
+    this.channels.forEach(channel => {
+      channel.send(this.welcomeMessage());
+    });
 
     this.groups = _.keys(this.slack.groups)
       .map(k => this.slack.groups[k])
