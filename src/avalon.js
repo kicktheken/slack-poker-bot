@@ -348,8 +348,8 @@ class Avalon {
       let questAssign = QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][this.questNumber];
       status.push(`${questAssign.n}${questAssign.f > 1 ? '*' : ''}:black_circle:`);
     }
-    if (status.length < 5) {
-      status = status.concat(_.times(5 - status.length, (i) => {
+    if (status.length < Avalon.MIN_PLAYERS) {
+      status = status.concat(_.times(Avalon.MIN_PLAYERS - status.length, (i) => {
         let questAssign = QUEST_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS][i + status.length];
         return `${questAssign.n}${questAssign.f > 1 ? '*' : ''}:white_circle:`;
       }));
