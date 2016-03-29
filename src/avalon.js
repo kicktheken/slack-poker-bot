@@ -59,9 +59,9 @@ class Avalon {
       if (specialEvils.length < specialRoles.length) {
         assigns[assigns.indexOf('good')] = 'percival';
       }
+      let bad = 0;
       assigns[assigns.indexOf('bad')] = 'assassin';
-      assigns = assigns.filter(role => role != 'bad');
-      assigns = specialEvils.slice(0,numPlayers - assigns.length).concat(assigns);
+      assigns = assigns.map((role,i) => role == 'bad' && bad < specialEvils.length ? specialEvils[bad++] : role);
     }
     return assigns;
   }
