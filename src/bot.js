@@ -19,12 +19,7 @@ class Bot {
   constructor(token) {
     this.slack = new Slack(token, true, true);
     
-    this.gameConfig = {
-      resistance: false,
-      lady: false,
-      order: 'turn',
-      specialRoles: ['percival','morgana']
-    };
+    this.gameConfig = Avalon.DEFAULT_CONFIG;
     this.gameConfigParams = ['timeout', 'mode'];
   }
 

@@ -51,6 +51,15 @@ class Avalon {
     return 10;
   }
 
+  static get DEFAULT_CONFIG() {
+    return {
+      resistance: false,
+      lady: false,
+      order: 'turn',
+      specialRoles: ['percival','morgana']
+    };
+  }
+
   static getAssigns(numPlayers, specialRoles, resistance=false) {
     let assigns = ROLE_ASSIGNS[numPlayers - Avalon.MIN_PLAYERS].slice(0);
     if (!resistance) {
@@ -72,6 +81,7 @@ class Avalon {
     this.players = players;
     this.scheduler = scheduler;
     this.gameEnded = new rx.Subject();
+    _.extend(this, Avalon.DEFAULT_CONFIG);
   }
 
   start(playerDms, timeBetweenRounds=1000) {

@@ -7,17 +7,11 @@ const assert = require('chai').assert;
 const Avalon = require('../src/avalon');
 
 describe('Avalon', function() {
-  var game, slack, messages, channel, scheduler, players, playerDms;
+  var game, slack, messages, scheduler, players, playerDms;
 
   beforeEach(function() {
     slack = { token: 0xDEADBEEF };
     messages = new rx.Subject();
-    channel = {
-      send: function(message) {
-        console.log(message);
-        return { updateMessage: function() { } };
-      }
-    };
     messages.subscribe(m => {
       if (m.user && m.text) {
         console.log(`${players.find(p => p.id == m.user).name}: ${m.text}`);
@@ -33,7 +27,7 @@ describe('Avalon', function() {
       { id: 5, name: 'player_5' }
     ];
 
-    game = new Avalon(slack, messages, channel, players, scheduler);
+    game = new Avalon(slack, messages, players, scheduler);
     var logFunc = (method, id) => {
       return (msg => console.log(`${method}(${id}): ${msg.replace(/\n+/g,'\n')}`));
     };
