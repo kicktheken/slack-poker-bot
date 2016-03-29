@@ -17,15 +17,15 @@ const ROLE = {
   'merlin': ':angel: MERLIN :large_blue_circle: Loyal Servent of Arthur'
 };
 const ROLE_ASSIGNS = [
-  // ['assassin', 'merlin'],
-  // ['assassin', 'good', 'merlin'],
-  // ['assassin', 'good', 'good', 'merlin'],
-  ['morgana', 'assassin', 'good', 'percival', 'merlin'],
-  ['morgana', 'assassin', 'good', 'good', 'percival', 'merlin'],
-  ['bad', 'morgana', 'assassin', 'good', 'good', 'percival', 'merlin'],
-  ['bad', 'morgana', 'assassin', 'good', 'good', 'good', 'percival', 'merlin'],
-  ['bad', 'morgana', 'assassin', 'good', 'good', 'good', 'good', 'percival', 'merlin'],
-  ['bad', 'bad', 'morgana', 'assassin', 'good', 'good', 'good', 'good', 'percival', 'merlin']
+  // ['bad', 'good'],
+  // ['bad', 'good', 'good'],
+  // ['bad', 'good', 'good', 'good'],
+  ['bad', 'bad', 'good', 'good', 'good'],
+  ['bad', 'bad', 'good', 'good', 'good', 'good'],
+  ['bad', 'bad', 'bad', 'good', 'good', 'good', 'good'],
+  ['bad', 'bad', 'bad', 'good', 'good', 'good', 'good', 'good'],
+  ['bad', 'bad', 'bad', 'good', 'good', 'good', 'good', 'good', 'good'],
+  ['bad', 'bad', 'bad', 'bad', 'good', 'good', 'good', 'good', 'good', 'good']
 ];
 
 const ORDER = ['first', 'second', 'third', 'fourth', 'last'];
@@ -51,10 +51,24 @@ class Avalon {
     return 10;
   }
 
-  constructor(slack, messages, channel, players, scheduler=rx.Scheduler.timeout) {
+  static getAssigns(numPlayers, specialRoles, resistance=false) {
+    let assigns = ROLE_ASSIGNS[numPlayers - Avalon.MIN_PLAYERS].slice(0);
+    if (!resistance) {
+      assigns[assigns.indexOf('good')] = 'merlin';
+      let specialEvils = specialRoles.filter(role => role != 'percival');
+      if (specialEvils.length < specialRoles.length) {
+        assigns[assigns.indexOf('good')] = 'percival';
+      }
+      assigns[assigns.indexOf('bad')] = 'assassin';
+      assigns = assigns.filter(role => role != 'bad');
+      assigns = specialEvils.slice(0,numPlayers - assigns.length).concat(assigns);
+    }
+    return assigns;
+  }
+
+  constructor(slack, messages, players, scheduler=rx.Scheduler.timeout) {
     this.slack = slack;
     this.messages = messages;
-    this.channel = channel;
     this.players = players;
     this.scheduler = scheduler;
     this.gameEnded = new rx.Subject();
@@ -68,9 +82,8 @@ class Avalon {
     this.playerDms = playerDms;
     this.date = new Date();
 
-    let assigns = _.shuffle(ROLE_ASSIGNS[this.players.length - Avalon.MIN_PLAYERS]);
-    let players = _.shuffle(this.players);
-    this.players = players;
+    let players = this.players = this.playerOrder(this.players);
+    let assigns = this.getRoleAssigns(Avalon.getAssigns(players.length, this.specialRoles, this.resistance));
 
     let evils = this.evils = [];
     for (let i=0; i < players.length; i++) {
@@ -112,6 +125,14 @@ class Avalon {
       .subscribe();
       
     return this.gameEnded;
+  }
+
+  getRoleAssigns(roles) {
+    return _.shuffle(roles);
+  }
+
+  playerOrder(players) {
+    return _.shuffle(players);
   }
 
   quit() {

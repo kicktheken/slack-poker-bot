@@ -5,7 +5,7 @@ class MessageHelpers {
   // given user.
   static containsUserMention(messageText, userId) {
     let userTag = `<@${userId}>`;
-    return messageText && messageText.startsWith(userTag);
+    return messageText && messageText.trim().startsWith(userTag);
   }
 
   static formatAtUser(user) {

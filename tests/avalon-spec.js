@@ -35,7 +35,7 @@ describe('Avalon', function() {
 
     game = new Avalon(slack, messages, channel, players, scheduler);
     var logFunc = (method, id) => {
-      return (msg => console.log(`${method}(${id}): ${msg}`));
+      return (msg => console.log(`${method}(${id}): ${msg.replace(/\n+/g,'\n')}`));
     };
     playerDms = {
       1: { send: logFunc('send',1), postMessage: logFunc('postMessage', 1) },

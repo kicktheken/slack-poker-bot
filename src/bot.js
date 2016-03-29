@@ -19,8 +19,13 @@ class Bot {
   constructor(token) {
     this.slack = new Slack(token, true, true);
     
-    this.gameConfig = {};
-    this.gameConfigParams = ['timeout'];
+    this.gameConfig = {
+      resistance: false,
+      lady: false,
+      order: 'turn',
+      specialRoles: ['percival','morgana']
+    };
+    this.gameConfigParams = ['timeout', 'mode'];
   }
 
   // Public: Brings this bot online and starts handling messages sent to it.
@@ -45,26 +50,154 @@ class Bot {
 
     let disp = new rx.CompositeDisposable();
         
-    disp.add(this.handleDealGameMessages(messages, atMentions));
-    disp.add(this.handleConfigMessages(atMentions));
-    
+    disp.add(this.handleDealGameMessages(messages));
+ 
+    disp.add(this.handleAtMessages(atMentions,'help',(tokens, channel) => {
+      let gameMode = this.gameConfig.resistance ? 'Resistance' : `Avalon with ${this.gameConfig.specialRoles.join(', ').toUpperCase()}`;
+      let lines = [
+        `*Game mode*:\t${gameMode}`,
+        ...(this.gameConfig.lady ? ['*Lady of the Lake* enabled'] : []),
+        `*${_.capitalize(this.gameConfig.order)}* order`,
+        '*Usage*:',
+        '\t`roles`:\tShow what roles for each amount of players are set to',
+        '\t`add <role>`:\tadd special roles (morgana, percival, mordred, oberon, lady [of the lake])',
+        '\t`remove <role>`:\tremove special roles',
+        '\t`set <turn|random> order`:\tSet turn or random order'
+      ];
+      channel.send(lines.join('\n'));
+    }));
+
+    disp.add(this.handleAtMessages(atMentions,'roles',(tokens, channel) => {
+      let messages = [];
+      for (let i = Avalon.MIN_PLAYERS; i <= Avalon.MAX_PLAYERS; i++) {
+        let assigns = Avalon.getAssigns(i, this.gameConfig.specialRoles)
+          .map(role => (role != 'bad' && role != 'good') ? role.toUpperCase() : role)
+        messages.push(`${i} players: ${assigns.join(', ')}`);
+      }
+      channel.send(messages.join('\n'))
+    }));
+
+    disp.add(this.handleAtMessages(atMentions,'add',(tokens, channel) => {
+      let specialRoles = tokens.map(role => role.toLowerCase().trim());
+      let valid = false;
+      let messages = [];
+      let index = 0;
+      if (specialRoles.find('morgana')) {
+        messages.push(`Added MORGANA to roles (which includes PERCIVAL)`);
+        this.includeRole('morgana');
+        this.includeRole('percival');
+        valid = true;
+      } else if (specialRoles.find('percival')) {
+        messages.push(`Added PERCIVAL to roles`);
+        this.includeRole('percival');
+        valid = true;
+      }
+      if (specialRoles.find('mordred')) {
+        messages.push(`Added MORDRED to roles`);
+        this.includeRole('merlin');
+        valid = true;
+      }
+      if (specialRoles.find('oberon')) {
+        messages.push(`Added OBERON to roles`);
+        this.includeRole('merlin');
+        valid = true;
+      }
+      if (specialRoles.find('lady')) {
+        messages.push(`Added LADY OF THE LAKE`);
+        this.gameConfig.lady = true;
+        valid = true;
+      }
+      if (!valid) {
+        messages.push('Invalid input, only morgana, percival, mordred, oberon, and lady are recognized');
+      }
+      let printRoles = this.gameConfig.specialRoles.map(role => role.toUpperCase()).join(', ');
+      messages.push(`Special roles: ${printRoles}`);
+      channel.send(messages.join('\n'));
+    }));
+
+    disp.add(this.handleAtMessages(atMentions,'remove', (tokens,channel) => {
+      let specialRoles = tokens.map(role => role.toLowerCase().trim());
+      let valid = false;
+      let messages = [];
+      let index = 0;
+      if (specialRoles.find('percival')) {
+        if (this.excludeRole('morgana')) {
+          messages.push(`Removed PERCIVAL from roles (also removed dependent role MORGANA)`);
+        } else {
+          messages.push(`Removed PERCIVAL from roles`);
+        }
+        this.excludeRole('percival');
+        valid = true;
+      } else if (specialRoles.find('morgana')) {
+        this.excludeRole('morgana');
+        messages.push(`Removed MORGANA from roles`);
+        valid = true;
+      }
+      if (specialRoles.find('mordred')) {
+        messages.push(`Removed MORDRED from roles`);
+        this.excludeRole('mordred');
+        valid = true;
+      }
+      if (specialRoles.find('oberon')) {
+        messages.push(`Removed OBERON from roles`);
+        this.excludeRole('oberon');
+        valid = true;
+      }
+      if (specialRoles.find('lady')) {
+        messages.push(`Removed LADY OF THE LAKE`);
+        this.gameConfig.lady = false;
+        valid = true;
+      }
+      if (!valid) {
+        messages.push('Invalid input, only morgana, percival, mordred, oberon, and lady are recognized');
+      }
+      let printRoles = this.gameConfig.specialRoles.map(role => role.toUpperCase()).join(', ');
+      messages.push(`Special roles: ${printRoles}`);
+      channel.send(messages.join('\n'));
+    }));
+
+    disp.add(this.handleAtMessages(atMentions,'set',(tokens, channel) => {
+      if (tokens.length >= 2 && tokens[1] == 'order') {
+        if (tokens[0] == 'random') {
+          this.gameConfig.order = 'random';
+          channel.send('Set random order for the leader');
+        } else {
+          this.gameConfig.order = 'turn';
+          channel.send('Set turn order for the leader');
+        }
+      }
+    }));
     return disp;
+  }
+
+  includeRole(role) {
+    this.excludeRole(role);
+    this.gameConfig.specialRoles.unshift(role);
+  }
+
+  excludeRole(role) {
+    let index = this.gameConfig.specialRoles.indexOf(role);
+    if (index >= 0) {
+      this.gameConfig.specialRoles.splice(index, 1);
+      return true;
+    }
+    return false;
   }
   
   // Private: Looks for messages directed at the bot that contain the word
   // "deal." When found, start polling players for a game.
   //
   // messages - An {Observable} representing messages posted to a channel
-  // atMentions - An {Observable} representing messages directed at the bot
   //
   // Returns a {Disposable} that will end this subscription
-  handleDealGameMessages(messages, atMentions) {
-    let trigger = messages.where(e => e.text && e.text.toLowerCase().match(/^play avalon/i));
+  handleDealGameMessages(messages) {
+    let trigger = messages.where(e => e.text && e.text.toLowerCase().match(/^play (avalon|resistance)/i));
     trigger.map(e => this.slack.dms[e.channel]).where(channel => !!channel).do(channel => {
-      channel.send(`Message to a channel to play avalon.`);
+      channel.send(`Message to a channel to play avalon/resistance.`);
     }).subscribe();
 
     return trigger.map(e => {
+      this.gameConfig.resistance = e.text.match(/resistance/i);
       return {
         channel: this.slack.channels[e.channel] || this.slack.groups[e.channel],
         initiator: e.user
@@ -88,26 +221,17 @@ class Bot {
       })
       .subscribe();
   }
-  
-  // Private: Looks for messages directed at the bot that contain the word
-  // "config" and have valid parameters. When found, set the parameter.
-  //
+
   // atMentions - An {Observable} representing messages directed at the bot
   //
   // Returns a {Disposable} that will end this subscription
-  handleConfigMessages(atMentions) {
-    return atMentions
-      .where(e => e.text && e.text.toLowerCase().includes('config'))
-      .subscribe(e => {
-        let channel = this.slack.getChannelGroupOrDMByID(e.channel);
-        
-        e.text.replace(/(\w*)=(\d*)/g, (match, key, value) => {
-          if (this.gameConfigParams.indexOf(key) > -1 && value) {
-            this.gameConfig[key] = value;
-            channel.send(`Game ${key} has been set to ${value}.`);
-          }
-        });
-      });
+  handleAtMessages(atMentions, command, handler) {
+    command = command.toLowerCase();
+    return atMentions.where(e => e.text && e.text.toLowerCase().match(`[^\\s]+\\s+${command}`)).subscribe(e => {
+      let channel = this.slack.getChannelGroupOrDMByID(e.channel);
+      let tokens = e.text.split(/[\s,]+/).slice(2);
+      handler(tokens, channel);
+    });
   }
   
   // Private: Polls players to join the game, and if we have enough, starts an
@@ -120,7 +244,11 @@ class Bot {
   pollPlayersForGame(messages, channel, initiator, specialChars, scheduler=rx.Scheduler.timeout, timeout=30) {
     this.isPolling = true;
 
-    channel.send('Who wants to play Avalon? https://cf.geekdo-images.com/images/pic1398895_md.jpg');
+    if (this.gameConfig.resistance) {
+      channel.send('Who wants to play Resistance? https://amininima.files.wordpress.com/2013/05/theresistance.png');
+    } else {
+      channel.send('Who wants to play Avalon? https://cf.geekdo-images.com/images/pic1398895_md.jpg');
+    }
 
     // let formatMessage = t => [
     //   'Respond with:',
