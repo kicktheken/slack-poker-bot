@@ -315,8 +315,8 @@ class Avalon {
             return this.dmMessages(p)
               .where(e => e.user === p.id)
               .map(e => e.text)
-              .where(text => text && text.match(/^\b(approve|reject)\b$/))
-              .map(text => { return { player: p, approve: text.match(/approve/) }})
+              .where(text => text && text.match(/^\b(approve|reject)\b$/i))
+              .map(text => { return { player: p, approve: text.match(/approve/i) }})
               .take(1)
           }).mergeAll()
           
@@ -375,8 +375,8 @@ class Avalon {
         return this.dmMessages(player)
           .where(e => e.user === player.id)
           .map(e => e.text)
-          .where(text => text && text.match(/^\b(succeed|fail)\b$/))
-          .map(text => text.match(/fail/) ? 1 : 0)
+          .where(text => text && text.match(/^\b(succeed|fail)\b$/i))
+          .map(text => text.match(/fail/i) ? 1 : 0)
           .take(1)
       }).mergeAll()
       .do(() => {
@@ -426,7 +426,7 @@ class Avalon {
                 return this.messages
                   .where(e => e.user == assassin.id)
                   .map(e => e.text)
-                  .map(text => text && text.match(/^kill (.+)/))
+                  .map(text => text && text.match(/^kill (.+)/i))
                   .where(match => match && match[1])
                   .map(match => {
                     let accused = this.players.filter(player => player.name.toLowerCase() == match[1].trim().toLowerCase());
