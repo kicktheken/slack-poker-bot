@@ -322,11 +322,11 @@ class Avalon {
           
       })
       .do(() => {
-        if (++voters < this.players.length - 1) {
-          this.broadcast(`${voters} out of ${this.players.length - 1} voted for the ${ORDER[this.questNumber]} quest`);
+        if (++voters < this.players.length) {
+          this.broadcast(`${voters} out of ${this.players.length} voted for the ${ORDER[this.questNumber]} quest`);
         }
       })
-      .take(this.players.length - 1)
+      .take(this.players.length)
       .reduce((acc, vote) => {
         if (vote.approve) {
           acc.approved.push(vote.player);
