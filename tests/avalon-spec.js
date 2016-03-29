@@ -22,7 +22,10 @@ describe('Avalon', function() {
       { id: 2, name: 'player_2' },
       { id: 3, name: 'player_3' },
       { id: 4, name: 'player_4' },
-      { id: 5, name: 'player_5' }
+      { id: 5, name: 'player_5' },
+      { id: 6, name: 'player_6' },
+      { id: 7, name: 'player_7' },
+      { id: 8, name: 'player_8' }
     ];
 
     game = new Avalon(slack, messages, players, scheduler);
@@ -34,7 +37,10 @@ describe('Avalon', function() {
       2: { send: logFunc('send',2), postMessage: logFunc('postMessage', 2) },
       3: { send: logFunc('send',3), postMessage: logFunc('postMessage', 3) },
       4: { send: logFunc('send',4), postMessage: logFunc('postMessage', 4) },
-      5: { send: logFunc('send',5), postMessage: logFunc('postMessage', 5) }
+      5: { send: logFunc('send',5), postMessage: logFunc('postMessage', 5) },
+      6: { send: logFunc('send',6), postMessage: logFunc('postMessage', 6) },
+      7: { send: logFunc('send',7), postMessage: logFunc('postMessage', 7) },
+      8: { send: logFunc('send',8), postMessage: logFunc('postMessage', 8) }
     };
   });
   

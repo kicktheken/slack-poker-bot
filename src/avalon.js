@@ -7,7 +7,7 @@ const M = require('./message-helpers');
 
 rx.config.longStackSupport = true;
 
-const ROLE = {
+const ROLES = {
   'bad': ':red_circle: Minion of Mordred',
   'good': ':large_blue_circle: Loyal Servent of Arthur',
   'assassin': ':crossed_swords: THE ASSASSIN :red_circle: Minion of Mordred',
@@ -110,7 +110,7 @@ class Avalon {
 
     let knownEvils = evils.filter(player => player.role != 'oberon');
     for (let player of this.players) {
-      let message = `\`\`\`${_.times(60,_.constant('\n')).join('')}\`\`\` You are ${ROLE[player.role]}`;
+      let message = `\`\`\`${_.times(60,_.constant('\n')).join('')}\`\`\` You are ${ROLES[player.role]}`;
       if (player.role == 'merlin') {
         let evilButMordred = evils.filter(p => p.role != 'mordred');
         if (evilButMordred.length == evils.length) {
@@ -198,7 +198,7 @@ class Avalon {
       let specialRoles = this.players.filter(p => p.role != 'good' && p.role != 'bad' || p.role != 'assassin');
       if (specialRoles.length) {
         specialRoles = specialRoles.map(p => p.role);
-        Object.keys(ROLES).filter(role => specialRoles.indexOf(role) >= 0).map(role => {
+        specialRoles = Object.keys(ROLES).filter(role => specialRoles.indexOf(role) >= 0).map(role => {
           switch(role) {
             case 'merlin': return ':angel: MERLIN';
             case 'percival': return ':cop: PERCIVAL';
@@ -206,7 +206,7 @@ class Avalon {
             case 'mordred': return ':smiling_imp: MORDRED';
             case 'oberon': return ':alien: OBERON';
           }
-        }).join(', ');
+        }).filter(role => !!role).join(', ');
         attachment.text = `${prependText}\nSpecial roles: ${specialRoles}\n${message}`;
       } else {
         attachment.text = `${prependText}\n${message}`;
