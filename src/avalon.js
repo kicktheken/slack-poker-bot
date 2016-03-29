@@ -166,7 +166,7 @@ class Avalon {
     let lines = [`${M.pp(this.evils)} are :red_circle: Minions of Mordred.`];
     let reveals = {};
     for (let player of this.players) {
-      if (player.role == 'merlin' && !excluedMerlin) {
+      if (player.role == 'merlin' && !excludeMerlin) {
         reveals['merlin'] = `${M.formatAtUser(player)} is :angel: MERLIN`;
       } else if (player.role == 'percival') {
         reveals['percival'] = `${M.formatAtUser(player)} is :cop: PERCIVAL`;
