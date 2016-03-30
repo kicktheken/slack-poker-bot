@@ -110,10 +110,16 @@ class Avalon {
         evils.push(player);
       }
     }
+    if (!this.resistance) {
+      this.assassin = this.getAssassin();
+    }
 
     let knownEvils = evils.filter(player => player.role != 'oberon');
     for (let player of this.players) {
       let message = `\`\`\`${_.times(60,_.constant('\n')).join('')}\`\`\` You are ${ROLES[player.role]}`;
+      if (this.assassin.id == player.id && player.role != 'assassin') {
+        message += ' as well as :crossed_swords: THE ASSASSIN';
+      }
       if (player.role == 'merlin') {
         let evilButMordred = evils.filter(p => p.role != 'mordred');
         if (evilButMordred.length == evils.length) {
@@ -423,7 +429,7 @@ class Avalon {
             this.endGame(`:large_blue_circle: Loyal Servents of Arthur win by succeeding 3 quests!`, '#08e');
             return rx.Observable.return(true);
           }
-          let assassin = this.getAssassin();
+          let assassin = this.assassin;
           merlin = merlin[0];
           
           this.broadcast(`Victory is near for :large_blue_circle: Loyal Servents of Arthur for succeeding 3 quests!`);
