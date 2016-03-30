@@ -224,11 +224,13 @@ class Bot {
   // Returns a {Disposable} that will end this subscription
   handleAtMessages(atMentions, command, handler) {
     command = command.toLowerCase();
-    return atMentions.where(e => e.text && e.text.toLowerCase().match(`[^\\s]+\\s+${command}`)).subscribe(e => {
-      let channel = this.slack.getChannelGroupOrDMByID(e.channel);
-      let tokens = e.text.split(/[\s,]+/).slice(2);
-      handler(tokens, channel);
-    });
+    return atMentions.where(e => e.user != this.slack.self.id)
+      .where(e => e.text && e.text.toLowerCase().match(`[^\\s]+\\s+${command}`))
+      .subscribe(e => {
+        let channel = this.slack.getChannelGroupOrDMByID(e.channel);
+        let tokens = e.text.split(/[\s,]+/).slice(2);
+        handler(tokens, channel);
+      });
   }
   
   // Private: Polls players to join the game, and if we have enough, starts an
